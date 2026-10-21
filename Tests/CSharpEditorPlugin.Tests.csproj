@@ -34,6 +34,6 @@
   <ItemGroup>
     <ProjectReference Include="..\CSharpEditorPlugin.csproj" />
     <ProjectReference Include="..\Runner\CSharpEditorPlugin.Runner.csproj" />
-    <PackageReference Include="FryWorld.Sdk" Version="0.2.0" />
+    <PackageReference Include="FryWorld.Sdk" Version="0.4.0" />
   </ItemGroup>
 </Project>

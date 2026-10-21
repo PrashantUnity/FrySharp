@@ -4,11 +4,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.Input;
+using FryWorld.Sdk.AI;
 using FryWorld.Sdk.Descriptors;
 using FryWorld.Sdk.Models;
 using FryWorld.Sdk.Plugins;
 using FryWorld.Sdk.Services;
+using FryWorld.Sdk.Shortcuts;
+using Microsoft.Extensions.AI;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
+using PdfEditorApp.Plugins.CSharpEditor.Services.AI.Providers;
+using PdfEditorApp.Plugins.CSharpEditor.Services.AI.Tools;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Processes;
 using PdfEditorApp.Plugins.CSharpEditor.Views;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels;
@@ -104,7 +109,12 @@ public class CSharpEditorPlugin : IFryPlugin
                 ctx.TryGetService<ISettingsManager>(out var settingsStore);
                 var hostVm = new CSharpStudioHostViewModel(ctx, settingsStore);
                 activeHost = hostVm;
-                return new CSharpStudioHostView { DataContext = hostVm };
+                var view = new CSharpStudioHostView { DataContext = hostVm };
+                if (ctx.TryGetService<FryWorld.Sdk.Theming.IThemeManager>(out var tm))
+                {
+                    tm.TrackResourceRoot(view);
+                }
+                return view;
             }
         });
 
@@ -212,21 +222,119 @@ public class CSharpEditorPlugin : IFryPlugin
             }
         });
 
+        // 6. AI Subsystem: Real-time context provider for host Copilot & external MCP clients
+        var aiProviderReg = ctx.RegisterAiContextProvider(new CSharpAiContextProvider(() => activeHost));
+
+        // 7. AI Subsystem: Callable tools for autonomous execution, inspection, and patching
+        var hostAiTools = new CSharpHostAiTools(() => activeHost, NavigateToStudio);
+        var aiTools = new List<IDisposable>
+        {
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_get_active_code",
+                Description = "Gets the file name, programming language, and complete source code of the active editor document or notebook cell in FrySharp.",
+                Category = "C# Development",
+                Function = AIFunctionFactory.Create(hostAiTools.GetActiveCode, "csharp_get_active_code", "Gets the file name, programming language, and source code of the active FrySharp document.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_get_diagnostics",
+                Description = "Analyzes the active C# code using Roslyn compiler diagnostics and returns syntax and semantic errors and warnings.",
+                Category = "C# Development",
+                Function = AIFunctionFactory.Create(hostAiTools.GetDiagnostics, "csharp_get_diagnostics", "Analyzes the active C# code using Roslyn compiler diagnostics.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_set_active_code",
+                Description = "Updates or replaces the code content in the active FrySharp editor document or notebook cell.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.SetActiveCode, "csharp_set_active_code", "Updates or replaces the code in the active editor.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_run_script",
+                Description = "Executes the active script or notebook cell in FrySharp.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.RunScript, "csharp_run_script", "Executes the active script or notebook cell in FrySharp.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_stop_script",
+                Description = "Halts or interrupts active execution in FrySharp.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.StopScript, "csharp_stop_script", "Halts or interrupts active script execution.")
+            })
+        };
+
+        // 8. AI Subsystem: Turnkey Engineering Prompts
+        var aiPrompts = new List<IDisposable>
+        {
+            ctx.RegisterAiPrompt(new AiPromptDescriptor
+            {
+                Id = "csharp.generate_script",
+                Title = "Create Automation Script",
+                Description = "Generate a top-level C# automation script with Display(), Dump(), and LINQ.",
+                Category = "C# Development",
+                Template = "Create a robust, self-contained C# 13 script for FrySharp using top-level statements. Use Display() to show structured outputs or tables and include error handling."
+            }),
+
+            ctx.RegisterAiPrompt(new AiPromptDescriptor
+            {
+                Id = "csharp.fix_diagnostics",
+                Title = "Fix Compiler Diagnostics",
+                Description = "Diagnose active Roslyn compiler syntax and type errors and provide corrected code.",
+                Category = "C# Development",
+                Template = "Analyze the active C# compiler diagnostics in FrySharp. Identify why each error or warning occurs and provide a clean, idiomatic fix with minimal code changes."
+            }),
+
+            ctx.RegisterAiPrompt(new AiPromptDescriptor
+            {
+                Id = "csharp.linq_benchmark",
+                Title = "Optimize LINQ & Memory",
+                Description = "Refactor queries for zero-allocation and high performance using Span and Memory.",
+                Category = "C# Development",
+                Template = "Review the active C# code and optimize it for high performance and low memory allocation. Propose improvements using Memory<T>, ReadOnlySpan<T>, or optimized LINQ patterns."
+            }),
+
+            ctx.RegisterAiPrompt(new AiPromptDescriptor
+            {
+                Id = "csharp.explain_exception",
+                Title = "Diagnose Runtime Exception",
+                Description = "Analyze the stack trace and execution output to explain the root cause and remedy.",
+                Category = "C# Development",
+                Template = "Examine the latest execution failure or exception in the FrySharp script. Explain the root cause of the error and provide the exact patch needed to fix it."
+            })
+        };
+
+        // 9. Keyboard Shortcuts with explicit Scope and Category
         var shortcuts = new List<IDisposable>
         {
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.studio.launch",
+                Title = "Launch FrySharp",
+                Category = "Navigation",
                 Description = "Open in-app C# development studio and script automation workspace.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Alt+E" : "Ctrl+Alt+E",
+                Scope = ShortcutScope.Global,
                 Command = new RelayCommand(NavigateToStudio)
             }),
 
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.run",
+                Title = "Run / Debug Script",
+                Category = "Code Studio",
                 Description = "Execute active C# script or debug at current breakpoint.",
                 KeyGesture = "F5",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is not CSharpCodeStudioViewModel codeVm) return;
@@ -244,8 +352,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.stop",
+                Title = "Stop Script",
+                Category = "Code Studio",
                 Description = "Halt currently running C# background script, or interrupt the active notebook cell.",
                 KeyGesture = "Shift+F5",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     switch (activeHost?.CurrentPage)
@@ -266,8 +377,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.save",
+                Title = "Save Document",
+                Category = "File",
                 Description = "Save active C# script or notebook to local workspace storage.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+S" : "Ctrl+S",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     switch (activeHost?.CurrentPage)
@@ -285,8 +399,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.new",
+                Title = "New Document",
+                Category = "File",
                 Description = "Create a new notebook when Notebook Studio is active, otherwise a new automation script.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+N" : "Ctrl+N",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -303,8 +420,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.show_references",
+                Title = "Toggle References Tab",
+                Category = "Code Studio",
                 Description = "Switch to References tab and manage NuGet package dependencies.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+P" : "Ctrl+Shift+P",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpCodeStudioViewModel codeVm)
@@ -317,8 +437,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.run_cell",
+                Title = "Run Cell and Advance",
+                Category = "Notebook",
                 Description = "Execute current notebook code cell and advance cursor to next cell.",
                 KeyGesture = "Shift+Enter",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -331,8 +454,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.run_cell_stay",
+                Title = "Run Cell in Place",
+                Category = "Notebook",
                 Description = "Execute current notebook cell without moving cursor focus.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Enter" : "Ctrl+Enter",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel { ActiveCell: not null } nbVm)
@@ -345,8 +471,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.run_all",
+                Title = "Run All Cells",
+                Category = "Notebook",
                 Description = "Restart notebook kernel and execute all cells in sequence.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+Enter" : "Ctrl+Shift+Enter",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -359,8 +488,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.insert_cell_below",
+                Title = "Insert Cell Below",
+                Category = "Notebook",
                 Description = "Insert a new C# code cell below current cell.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+B" : "Ctrl+Shift+B",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -373,8 +505,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.insert_cell_above",
+                Title = "Insert Cell Above",
+                Category = "Notebook",
                 Description = "Insert a new C# code cell above current cell.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+A" : "Ctrl+Shift+A",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -387,8 +522,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.notebook.delete_cell",
+                Title = "Delete Cell",
+                Category = "Notebook",
                 Description = "Remove the selected notebook cell from document.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+D" : "Ctrl+Shift+D",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpNotebookStudioViewModel nbVm)
@@ -401,8 +539,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.zoom_in",
+                Title = "Zoom In",
+                Category = "View",
                 Description = "Increase code canvas and terminal font size.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+=" : "Ctrl+=",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpCodeStudioViewModel codeVm) codeVm.ZoomInCommand.Execute(null);
@@ -413,8 +554,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.zoom_out",
+                Title = "Zoom Out",
+                Category = "View",
                 Description = "Decrease code canvas and terminal font size.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+-" : "Ctrl+-",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpCodeStudioViewModel codeVm) codeVm.ZoomOutCommand.Execute(null);
@@ -425,8 +569,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.editor.zoom_reset",
+                Title = "Reset Zoom",
+                Category = "View",
                 Description = "Reset typography to default 100% (13px).",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+0" : "Ctrl+0",
+                Scope = Id,
                 Command = new RelayCommand(() =>
                 {
                     if (activeHost?.CurrentPage is CSharpCodeStudioViewModel codeVm) codeVm.ResetZoomCommand.Execute(null);
@@ -437,8 +584,11 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
                 Id = "csharp.studio.reload_customizations",
+                Title = "Reload Customizations",
+                Category = "Developer Tools",
                 Description = "Recompile and apply in-app customization scripts and theme tokens.",
                 KeyGesture = OperatingSystem.IsMacOS() ? "Cmd+Shift+R" : "Ctrl+Shift+R",
+                Scope = Id,
                 Command = new RelayCommand(() => { _ = customizationManager.ReloadAsync(); })
             })
         };
@@ -459,6 +609,9 @@ public class CSharpEditorPlugin : IFryPlugin
             extensionManager.Dispose();
             statusReg.Dispose();
             ribbonActionReg.Dispose();
+            aiProviderReg.Dispose();
+            foreach (var t in aiTools) t.Dispose();
+            foreach (var p in aiPrompts) p.Dispose();
             foreach (var s in shortcuts) s.Dispose();
         });
 

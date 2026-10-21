@@ -42,10 +42,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FryWorld.Sdk" Version="0.2.0" />
+    <PackageReference Include="FryWorld.Sdk" Version="0.4.0" />
     <PackageReference Include="Markdig" Version="1.4.0" />
-    <PackageReference Include="Microsoft.Extensions.AI" Version="10.10.0" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.10.1" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
