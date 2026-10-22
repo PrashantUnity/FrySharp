@@ -5,6 +5,8 @@ using PdfEditorApp.Plugins.CSharpEditor.Services.Roslyn;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Toolchains;
 using Xunit;
 
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
+
 namespace FrySharp.Core.Tests;
 
 /// <summary>A fresh folder under the system temp folder, deleted with the test.</summary>

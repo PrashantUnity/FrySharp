@@ -614,6 +614,7 @@ public partial class DocumentationService
                     Description = "Inspect lists, dictionaries, pandas DataFrames, and matplotlib plots.",
                     Language = "python",
                     TargetKind = WorkspaceItemKind.Script,
+                    NotRunnable = true, // requires external package: pandas
                     Code = """
                         data = [64, 34, 25, 12, 22, 11, 90, 88, 45, 50, 7]
                         data.sort()
