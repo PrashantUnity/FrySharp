@@ -397,6 +397,7 @@ Console.WriteLine(json);"
                     Description = "Opens as a notebook with one Python cell. The DataFrame shows as a table; a missing package gets an Install button.",
                     Language = "python",
                     TargetKind = WorkspaceItemKind.Notebook,
+                    NotRunnable = true, // requires external packages: numpy, pandas
                     Code = @"import numpy as np
 import pandas as pd
 
@@ -411,6 +412,7 @@ frame"
                     Description = "plt.show() draws the figure inline, under the cell.",
                     Language = "python",
                     TargetKind = WorkspaceItemKind.Notebook,
+                    NotRunnable = true, // requires external package: matplotlib
                     Code = @"import matplotlib.pyplot as plt
 
 plt.figure(figsize=(6, 2.5))
