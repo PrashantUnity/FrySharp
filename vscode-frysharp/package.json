@@ -2,7 +2,7 @@
   "name": "frysharp",
   "displayName": "FrySharp: Polyglot Notebooks & Roslyn Scripting",
   "description": "Polyglot notebooks and script runs for C#, F#, Python, JavaScript, Java, SQL, Rust, Go and C++: tables, charts, 3D, an Object Explorer, variable sharing between languages, and live diagnostics.",
-  "version": "2.0.5",
+  "version": "2.0.7",
   "publisher": "Codefrydev",
   "license": "MIT",
   "icon": "media/icon.png",

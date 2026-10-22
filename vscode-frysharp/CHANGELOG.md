@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.7
+
+- Synchronized with FrySharp v2.0.7 release.
+- Added Model Context Protocol (MCP) tool integration and comprehensive AI subsystem tool documentation.
+- Upgraded bundled headless `FrySharp.Sidecar` JSON-RPC engine to latest .NET 10 runtime.
+- Enhanced notebook execution stability and live diagnostics across languages.
+
 ## 2.0.5
 
 - Synchronized with FrySharp v2.0.5 release.
