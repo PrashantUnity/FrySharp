@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FryWorld.Sdk.Plugins;
 using PdfEditorApp.Plugins.CSharpEditor;
@@ -26,14 +27,18 @@ public class CSharpHostAiIntegrationTests
         Assert.NotEmpty(contextProviders);
         Assert.Contains(contextProviders, p => p.PluginId == "com.fryworld.csharpstudio");
 
-        // 2. Verify AI Tools
+        // 2. Verify all 9 AI Tools are registered
         var aiTools = scopedCtx.GetRegisteredAiTools();
-        Assert.NotEmpty(aiTools);
+        Assert.Equal(9, aiTools.Count);
         Assert.Contains(aiTools, t => t.Name == "csharp_get_active_code");
         Assert.Contains(aiTools, t => t.Name == "csharp_get_diagnostics");
         Assert.Contains(aiTools, t => t.Name == "csharp_set_active_code");
         Assert.Contains(aiTools, t => t.Name == "csharp_run_script");
         Assert.Contains(aiTools, t => t.Name == "csharp_stop_script");
+        Assert.Contains(aiTools, t => t.Name == "csharp_get_output");
+        Assert.Contains(aiTools, t => t.Name == "csharp_execute_code");
+        Assert.Contains(aiTools, t => t.Name == "csharp_new_script");
+        Assert.Contains(aiTools, t => t.Name == "csharp_open_file");
 
         // 3. Verify AI Prompts
         var aiPrompts = scopedCtx.GetRegisteredAiPrompts();
@@ -76,6 +81,51 @@ public class CSharpHostAiIntegrationTests
 
         var stopResult = await tools.StopScript();
         Assert.Contains("No running execution", stopResult);
+
+        var outputResult = tools.GetExecutionOutput();
+        Assert.Contains("No active script or notebook open", outputResult);
+    }
+
+    [Fact]
+    public async Task CSharpHostAiTools_ExecuteCode_RunsTopLevelStatementsAndCapturesOutput()
+    {
+        var tools = new CSharpHostAiTools(() => null);
+
+        var json = await tools.ExecuteCode("Console.WriteLine(\"Hello from FrySharp MCP!\");");
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.GetProperty("Success").GetBoolean());
+        Assert.Equal("Execution", root.GetProperty("Phase").GetString());
+        Assert.Contains("Hello from FrySharp MCP!", root.GetProperty("Output").GetString());
+    }
+
+    [Fact]
+    public async Task CSharpHostAiTools_ExecuteCode_ReturnsCompilationErrors()
+    {
+        var tools = new CSharpHostAiTools(() => null);
+
+        var json = await tools.ExecuteCode("int number = \"this is not an integer\";");
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.False(root.GetProperty("Success").GetBoolean());
+        Assert.Equal("Compilation", root.GetProperty("Phase").GetString());
+        Assert.True(root.GetProperty("ErrorCount").GetInt32() > 0);
+    }
+
+    [Fact]
+    public void CSharpHostAiTools_GetDiagnostics_DirectCode_ReturnsErrorsAndWarnings()
+    {
+        var tools = new CSharpHostAiTools(() => null);
+
+        var badCodeJson = tools.GetDiagnostics("int x = \"invalid assignment\";");
+        using var badDoc = JsonDocument.Parse(badCodeJson);
+        Assert.True(badDoc.RootElement.GetProperty("ErrorCount").GetInt32() > 0);
+
+        var goodCodeJson = tools.GetDiagnostics("int x = 42;\nSystem.Console.WriteLine(x);");
+        using var goodDoc = JsonDocument.Parse(goodCodeJson);
+        Assert.Equal(0, goodDoc.RootElement.GetProperty("ErrorCount").GetInt32());
     }
 
     [Fact]

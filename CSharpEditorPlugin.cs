@@ -96,6 +96,16 @@ public class CSharpEditorPlugin : IFryPlugin
             if (ctx.TryGetService<IShellService>(out var shell)) shell.NavigateTo("com.fryworld.csharpstudio");
         }
 
+        CSharpStudioHostViewModel GetHostViewModel()
+        {
+            if (activeHost == null)
+            {
+                ctx.TryGetService<ISettingsManager>(out var settingsStore);
+                activeHost = CSharpStudioHostViewModel.ActiveInstance ?? new CSharpStudioHostViewModel(ctx, settingsStore);
+            }
+            return activeHost;
+        }
+
         var navReg = ctx.RegisterNavigationItem(new NavigationItemDescriptor
         {
             Id = "com.fryworld.csharpstudio",
@@ -106,9 +116,7 @@ public class CSharpEditorPlugin : IFryPlugin
             Order = 38,
             ViewFactory = () =>
             {
-                ctx.TryGetService<ISettingsManager>(out var settingsStore);
-                var hostVm = new CSharpStudioHostViewModel(ctx, settingsStore);
-                activeHost = hostVm;
+                var hostVm = GetHostViewModel();
                 var view = new CSharpStudioHostView { DataContext = hostVm };
                 if (ctx.TryGetService<FryWorld.Sdk.Theming.IThemeManager>(out var tm))
                 {
@@ -223,10 +231,10 @@ public class CSharpEditorPlugin : IFryPlugin
         });
 
         // 6. AI Subsystem: Real-time context provider for host Copilot & external MCP clients
-        var aiProviderReg = ctx.RegisterAiContextProvider(new CSharpAiContextProvider(() => activeHost));
+        var aiProviderReg = ctx.RegisterAiContextProvider(new CSharpAiContextProvider(() => GetHostViewModel()));
 
         // 7. AI Subsystem: Callable tools for autonomous execution, inspection, and patching
-        var hostAiTools = new CSharpHostAiTools(() => activeHost, NavigateToStudio);
+        var hostAiTools = new CSharpHostAiTools(() => GetHostViewModel(), NavigateToStudio);
         var aiTools = new List<IDisposable>
         {
             ctx.RegisterAiTool(new AiToolDescriptor
@@ -240,9 +248,9 @@ public class CSharpEditorPlugin : IFryPlugin
             ctx.RegisterAiTool(new AiToolDescriptor
             {
                 Name = "csharp_get_diagnostics",
-                Description = "Analyzes the active C# code using Roslyn compiler diagnostics and returns syntax and semantic errors and warnings.",
+                Description = "Analyzes C# code using Roslyn compiler diagnostics and returns syntax and semantic errors and warnings. Accepts optional code parameter; if omitted, the active document is analyzed.",
                 Category = "C# Development",
-                Function = AIFunctionFactory.Create(hostAiTools.GetDiagnostics, "csharp_get_diagnostics", "Analyzes the active C# code using Roslyn compiler diagnostics.")
+                Function = AIFunctionFactory.Create(hostAiTools.GetDiagnostics, "csharp_get_diagnostics", "Analyzes C# code using Roslyn compiler diagnostics.")
             }),
 
             ctx.RegisterAiTool(new AiToolDescriptor
@@ -270,6 +278,41 @@ public class CSharpEditorPlugin : IFryPlugin
                 Category = "C# Development",
                 RequiresConfirmation = false,
                 Function = AIFunctionFactory.Create(hostAiTools.StopScript, "csharp_stop_script", "Halts or interrupts active script execution.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_get_output",
+                Description = "Returns the latest execution console output, status, and compiler diagnostics from the active FrySharp editor or notebook.",
+                Category = "C# Development",
+                Function = AIFunctionFactory.Create(hostAiTools.GetExecutionOutput, "csharp_get_output", "Returns the latest execution console output, status, and compiler diagnostics.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_execute_code",
+                Description = "Executes C# code directly in-memory using Roslyn and returns console output, compilation diagnostics, and execution telemetry.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.ExecuteCode, "csharp_execute_code", "Executes C# code directly in-memory using Roslyn.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_new_script",
+                Description = "Creates a new C# automation script in FrySharp and opens it in Code Studio.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.NewScript, "csharp_new_script", "Creates a new C# automation script in FrySharp.")
+            }),
+
+            ctx.RegisterAiTool(new AiToolDescriptor
+            {
+                Name = "csharp_open_file",
+                Description = "Opens a script or notebook file from disk into FrySharp Code Studio or Notebook Studio.",
+                Category = "C# Development",
+                RequiresConfirmation = false,
+                Function = AIFunctionFactory.Create(hostAiTools.OpenFile, "csharp_open_file", "Opens a script or notebook file from disk into FrySharp.")
             })
         };
 
@@ -599,6 +642,15 @@ public class CSharpEditorPlugin : IFryPlugin
 
         ctx.RegisterEffect(() =>
         {
+            if (activeHost != null)
+            {
+                if (CSharpStudioHostViewModel.ActiveInstance == activeHost)
+                {
+                    CSharpStudioHostViewModel.ActiveInstance = null;
+                }
+                activeHost.Dispose();
+                activeHost = null;
+            }
             killProcessesOnExit.Dispose();
             ProcessRegistry.KillAll();
             navReg.Dispose();

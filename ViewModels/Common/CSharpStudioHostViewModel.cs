@@ -20,6 +20,11 @@ namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
 public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
 {
+    /// <summary>
+    /// The currently active studio host instance across the application, used by MCP tools and ambient services.
+    /// </summary>
+    public static CSharpStudioHostViewModel? ActiveInstance { get; internal set; }
+
     private const string PluginId = "com.frypdf.plugin.csharpeditor";
 
     // 0 = no automatic timeout: execution runs until the user clicks Stop, matching Jupyter/
@@ -199,6 +204,7 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
             ManagerViewModel.RoslynEngineStatus = _engine.StatusText;
         });
         _engine.Start();
+        ActiveInstance = this;
     }
 
     // The second stage: only makes the first run fast. Nobody waits for it.
@@ -504,6 +510,7 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (ActiveInstance == this) ActiveInstance = null;
         FlushSettings();
         DocsViewModel.Dispose();
         Activity.Dispose();

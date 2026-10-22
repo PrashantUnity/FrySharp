@@ -109,6 +109,17 @@ flowchart TD
 
 ---
 
+## 🤖 Model Context Protocol (MCP) Integration
+
+FrySharp provides 9 native tools to autonomous AI agents over the Model Context Protocol (MCP) for direct code execution, compiler error diagnosis, editor injection, and live debugging.
+
+See the complete documentation:
+- 📖 [MCP Integration Guide](docs/mcp/README.md)
+- 🛠️ [MCP Tools Reference](docs/mcp/tools-reference.md)
+- ⚡ [Interactive Workflows & Client Examples](docs/mcp/interactive-workflows.md)
+
+---
+
 ## 💖 Sponsor & Support
 
 [![How Your Sponsorship Works: A Scientific Flowchart](Assets/sponsorship-flowchart.jpg)](https://github.com/sponsors/PrashantUnity)
