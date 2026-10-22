@@ -13,7 +13,7 @@
     <AssemblyName>CSharpEditorPlugin</AssemblyName>
     <PackageId>FryPdf.Plugin.CSharpEditor</PackageId>
     <RootNamespace>PdfEditorApp.Plugins.CSharpEditor</RootNamespace>
-    <Version>2.0.6</Version>
+    <Version>2.0.7</Version>
     <!-- FryWorld.Sdk packages the plugin on Release builds; keep the file name the store catalog links to. -->
     <FryPluginPackageName>CSharpEditor</FryPluginPackageName>
     <!-- Script hover docs for Display, Dump, Check... ship next to the DLLs. -->
@@ -42,7 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FryWorld.Sdk" Version="0.4.0" />
+    <PackageReference Include="FryWorld.Sdk" Version="0.5.0" />
     <PackageReference Include="Markdig" Version="1.4.0" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.11.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" PrivateAssets="all" />

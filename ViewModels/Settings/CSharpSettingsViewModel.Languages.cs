@@ -49,10 +49,15 @@ public partial class CSharpSettingsViewModel
     public void SynchronizeLanguagesFromRegistry()
     {
         var registered = _languageServices.Registry.All;
-        var existingIds = Languages.Select(l => l.Language.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existingIds = Languages
+            .Where(l => l?.Language?.Id != null)
+            .Select(l => l.Language.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Remove any that are no longer registered
-        var toRemove = Languages.Where(l => !registered.Any(r => r.IsNamed(l.Language.Id))).ToList();
+        var toRemove = Languages
+            .Where(l => l?.Language?.Id == null || !registered.Any(r => r.IsNamed(l.Language.Id)))
+            .ToList();
         foreach (var item in toRemove)
         {
             Languages.Remove(item);

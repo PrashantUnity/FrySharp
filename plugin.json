@@ -1,9 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/codefrydev/FryWorld/main/src/FryWorld.Sdk/plugin.schema.json",
-  "sdkVersion": "0.4.0",
+  "sdkVersion": "0.5.0",
   "id": "com.fryworld.csharpstudio",
   "name": "FrySharp",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "author": "Code Fry Dev",
   "description": "Interactive in-app C# development and automation studio featuring a dedicated project/script manager, syntax-highlighted editor, real-time Roslyn compilation diagnostics, in-memory execution, visual gutter breakpoints, interactive stepping (F5/F10/F11), locals/watch inspection, and immediate evaluation.",
   "entryPoint": "CSharpEditorPlugin.dll",
