@@ -173,6 +173,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode-frysharp/package-lock.json
+
       - name: Restore
         run: dotnet restore CSharpEditorPlugin.slnx
 
@@ -192,11 +199,19 @@ jobs:
           dotnet pack CSharpEditorPlugin.csproj -c Release --no-build $VER_ARG --output ./artifacts
 
       # Stage .fryplugin alongside .nupkg so one upload covers everything
+      # Stage .fryplugin alongside .nupkg so one upload covers everything
       - name: Stage .fryplugin artifact
         run: |
           FRYPLUGIN=$(find . -name "CSharpEditor.fryplugin" | head -1)
           echo "Found: $FRYPLUGIN"
           cp "$FRYPLUGIN" ./artifacts/CSharpEditor.fryplugin
+
+      # Package and stage VS Code extension (.vsix)
+      - name: Package VS Code Extension (.vsix)
+        run: |
+          cd vscode-frysharp && npm ci
+          cd .. && make ext-package
+          cp vscode-frysharp/*.vsix ./artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -206,6 +221,7 @@ jobs:
             ./artifacts/*.nupkg
             ./artifacts/*.snupkg
             ./artifacts/CSharpEditor.fryplugin
+            ./artifacts/*.vsix
           if-no-files-found: error
 
   # ── 3. Publish NuGet packages (keyless OIDC) ─────────────────────────────
@@ -266,7 +282,7 @@ jobs:
 
           # Collect assets
           ASSETS=()
-          for f in artifacts/*.nupkg artifacts/*.snupkg artifacts/CSharpEditor.fryplugin; do
+          for f in artifacts/*.nupkg artifacts/*.snupkg artifacts/CSharpEditor.fryplugin artifacts/*.vsix; do
             [ -f "$f" ] && ASSETS+=("$f")
           done
 
