@@ -44,6 +44,7 @@ public partial class CSharpNotebookStudioViewModel
         _isPageActive = true;
         UpdateExtensibilityDocumentResolver();
         RefreshExplorerIfStaleAsync().FireAndForget(_activities, "Listing the workspace");
+        _ = RefreshGitStatusAsync();
 
         // Reading the file index starts (or refreshes) its background walk, so Go to File is ready when it is used.
         _ = _storageService.FileIndex;
@@ -235,7 +236,8 @@ public partial class CSharpNotebookStudioViewModel
             OnRenameCommitted = OnItemRenamed,
             OnDuplicateRequested = DuplicateExplorerItem,
             OnCopyPathRequested = CopyItemPath,
-            OnCopyRelativePathRequested = CopyItemRelativePath
+            OnCopyRelativePathRequested = CopyItemRelativePath,
+            OnRevealInFileManagerRequested = RevealItemInFileManager
         };
     }
 
@@ -259,7 +261,8 @@ public partial class CSharpNotebookStudioViewModel
             OnRenameCommitted = OnItemRenamed,
             OnDuplicateRequested = DuplicateExplorerItem,
             OnCopyPathRequested = CopyItemPath,
-            OnCopyRelativePathRequested = CopyItemRelativePath
+            OnCopyRelativePathRequested = CopyItemRelativePath,
+            OnRevealInFileManagerRequested = RevealItemInFileManager
         };
     }
 

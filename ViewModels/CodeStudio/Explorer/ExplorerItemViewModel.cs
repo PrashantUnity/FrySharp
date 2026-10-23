@@ -145,13 +145,102 @@ public partial class ExplorerItemViewModel : ObservableObject
         return ("FileOutline", "#8B949E");
     }
 
+    public static (string IconKind, string IconColor) IconForFolder(string name, bool isExpanded)
+    {
+        var lower = name.Trim().ToLowerInvariant();
+
+        // 1. Config & Settings
+        if (lower is ".frysharp" or ".vscode" or ".idea" or ".config" or ".settings")
+            return ("FolderCogOutline", "#8B949E");
+
+        if (lower is ".git" or ".github" or ".gitlab")
+            return ("FolderSyncOutline", "#F05032");
+
+        // 2. Assets & Media
+        if (lower is "assets" or "images" or "img" or "icons" or "static" or "res" or "resources" or "media")
+            return ("FolderImage", "#C586C0");
+
+        // 3. Data & Database
+        if (lower is "data" or "datasets" or "db" or "database" or "sql")
+            return ("FolderTable", "#75D59A");
+
+        // 4. Documentation
+        if (lower is "docs" or "doc" or "documentation" or "wiki")
+            return ("FolderInformationOutline", "#4EC9B0");
+
+        // 5. Scripts, Tools & Utilities
+        if (lower is "scripts" or "tools" or "utils" or "bin" or "helpers")
+            return ("FolderWrenchOutline", "#E5C07B");
+
+        // 6. Tests & Specs
+        if (lower is "tests" or "test" or "spec" or "specs" or "__tests__")
+            return ("FolderEyeOutline", "#7EE787");
+
+        // 7. Source & Libraries
+        if (lower is "src" or "source" or "sources" or "lib" or "core")
+            return ("FolderCodeOutline", "#58A6FF");
+
+        // 8. Packages & Dependencies
+        if (lower is "node_modules" or "packages" or "vendor" or ".venv" or "env" or "dependencies")
+            return ("FolderZipOutline", "#CE9178");
+
+        // 9. Server, API & Services
+        if (lower is "api" or "server" or "services" or "controllers" or "routes")
+            return ("FolderNetworkOutline", "#3FB9A2");
+
+        // 10. Styles & Themes
+        if (lower is "styles" or "themes" or "css" or "scss")
+            return ("PaletteOutline", "#CB88FF");
+
+        // 11. UI & Components
+        if (lower is "components" or "controls" or "views" or "ui" or "widgets")
+            return ("FolderMultipleOutline", "#61AFEF");
+
+        // Default folder: warm amber
+        return (isExpanded ? "FolderOpenOutline" : "FolderOutline", isExpanded ? "#F59E0B" : NotebookAmberHex);
+    }
+
+    public int ItemCount => Children.Count(c => !c.IsPlaceholder);
+
+    public string ItemCountBadge => IsDirectory && ItemCount > 0 ? ItemCount.ToString() : string.Empty;
+
+    public bool ShowCountBadge => IsDirectory && !IsExpanded && ItemCount > 0;
+
+    public bool IsEmptyExpandedFolder => IsDirectory && IsExpanded && ChildrenLoaded && Children.Count == 0;
+
+    public string ToolTipText
+    {
+        get
+        {
+            if (IsDirectory)
+            {
+                var count = ItemCount;
+                var countPart = count == 1 ? "1 item" : $"{count} items";
+                if (string.IsNullOrEmpty(FullPath) || string.Equals(FullPath, Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"{Name} ({countPart})";
+                }
+                return $"{Name} ({countPart})\n{FullPath}";
+            }
+
+            if (string.IsNullOrEmpty(FullPath) || string.Equals(FullPath, Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return Name;
+            }
+
+            return FullPath;
+        }
+    }
+
+    public static string RevealInFileManagerLabel => OperatingSystem.IsMacOS() ? "Reveal in Finder" : "Reveal in File Explorer";
+
     public string IconKind
     {
         get
         {
             if (IsDirectory)
             {
-                return IsExpanded ? "FolderOpenOutline" : "FolderOutline";
+                return IconForFolder(Name, IsExpanded).IconKind;
             }
 
             if (LanguageIconKind != null) return LanguageIconKind;
@@ -163,7 +252,7 @@ public partial class ExplorerItemViewModel : ObservableObject
     {
         get
         {
-            if (IsDirectory) return NotebookAmberHex;
+            if (IsDirectory) return IconForFolder(Name, IsExpanded).IconColor;
             if (LanguageIconColor != null) return LanguageIconColor;
             return IconForExtension(FileExtension).IconColor;
         }
@@ -183,6 +272,7 @@ public partial class ExplorerItemViewModel : ObservableObject
     public Action<ExplorerItemViewModel>? OnDuplicateRequested { get; set; }
     public Action<ExplorerItemViewModel>? OnCopyPathRequested { get; set; }
     public Action<ExplorerItemViewModel>? OnCopyRelativePathRequested { get; set; }
+    public Action<ExplorerItemViewModel>? OnRevealInFileManagerRequested { get; set; }
 
     partial void OnDepthChanged(int value)
     {
@@ -192,10 +282,23 @@ public partial class ExplorerItemViewModel : ObservableObject
     partial void OnIsExpandedChanged(bool value)
     {
         OnPropertyChanged(nameof(IconKind));
+        OnPropertyChanged(nameof(IconColor));
         OnPropertyChanged(nameof(ChevronKind));
+        OnPropertyChanged(nameof(ShowCountBadge));
+        OnPropertyChanged(nameof(IsEmptyExpandedFolder));
 
         // Opening a folder that has not been listed yet lists it (its placeholder row shows meanwhile).
         if (value && IsDirectory && !ChildrenLoaded) LoadChildrenRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public void ToggleChevron()
+    {
+        if (IsRenaming) return;
+        if (IsDirectory)
+        {
+            IsExpanded = !IsExpanded;
+        }
     }
 
     [RelayCommand]
@@ -207,10 +310,8 @@ public partial class ExplorerItemViewModel : ObservableObject
         {
             IsExpanded = !IsExpanded;
         }
-        else
-        {
-            OnItemClicked?.Invoke(this);
-        }
+
+        OnItemClicked?.Invoke(this);
     }
 
     [RelayCommand]
@@ -244,9 +345,10 @@ public partial class ExplorerItemViewModel : ObservableObject
             if (!IsDirectory)
             {
                 FileExtension = Path.GetExtension(trimmed) ?? string.Empty;
-                OnPropertyChanged(nameof(IconKind));
-                OnPropertyChanged(nameof(IconColor));
             }
+            OnPropertyChanged(nameof(IconKind));
+            OnPropertyChanged(nameof(IconColor));
+            OnPropertyChanged(nameof(ToolTipText));
             OnRenameCommitted?.Invoke(this);
         }
         IsRenaming = false;
@@ -323,5 +425,11 @@ public partial class ExplorerItemViewModel : ObservableObject
     public void RequestCopyRelativePath()
     {
         OnCopyRelativePathRequested?.Invoke(this);
+    }
+
+    [RelayCommand]
+    public void RequestRevealInFileManager()
+    {
+        OnRevealInFileManagerRequested?.Invoke(this);
     }
 }

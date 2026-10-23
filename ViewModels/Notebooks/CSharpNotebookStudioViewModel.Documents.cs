@@ -24,14 +24,13 @@ public partial class CSharpNotebookStudioViewModel
 
     public async Task OpenDocumentAsync(ExplorerItemViewModel item)
     {
-        if (item.IsDirectory)
-        {
-            item.IsExpanded = !item.IsExpanded;
-            return;
-        }
-
         DeselectAll(ExplorerRootItems);
         item.IsSelected = true;
+
+        if (item.IsDirectory)
+        {
+            return;
+        }
 
         var token = _documentOpen.Begin();
         using var activity = _activities.Start(new ActivityOptions($"Opening {item.Name}", ActivityLocation.Notebook), token);

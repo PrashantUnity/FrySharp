@@ -99,23 +99,21 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
     public bool IsOutlineActive  => SelectedActivityBarIndex == 1;
     public bool IsVariablesActive => SelectedActivityBarIndex == 2;
     public bool IsSearchActive   => SelectedActivityBarIndex == 3;
+    public bool IsSourceControlActive => SelectedActivityBarIndex == 6;
+    public bool IsDefaultSidebarCloseVisible => !IsExplorerActive && !IsSourceControlActive;
 
     public event Action<NotebookCellViewModel>? RequestScrollToCell;
 
     partial void OnSelectedActivityBarIndexChanged(int value)
     {
-        SideBarTitle = value switch
-        {
-            1 => "OUTLINE",
-            2 => "LIVE VARIABLES",
-            3 => "SEARCH",
-            _ => "EXPLORER"
-        };
+        UpdateSideBarTitle();
 
         OnPropertyChanged(nameof(IsExplorerActive));
         OnPropertyChanged(nameof(IsOutlineActive));
         OnPropertyChanged(nameof(IsVariablesActive));
         OnPropertyChanged(nameof(IsSearchActive));
+        OnPropertyChanged(nameof(IsSourceControlActive));
+        OnPropertyChanged(nameof(IsDefaultSidebarCloseVisible));
         OnPropertyChanged(nameof(OutlineCells));
         OnPropertyChanged(nameof(SearchPanelCells));
 
@@ -123,8 +121,34 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
         {
             ActiveTab?.UpdateVariables();
         }
+        else if (value == 6 && IsSideBarVisible)
+        {
+            _ = RefreshGitStatusAsync();
+        }
 
         UpdateToolVisibilityFlags();
+    }
+
+    private void UpdateSideBarTitle()
+    {
+        if (SelectedActivityBarIndex == 0)
+        {
+            var wsName = _storageService.IsExternalWorkspaceActive
+                ? Path.GetFileName(_storageService.ActiveWorkspaceRootPath.TrimEnd('/', '\\'))
+                : null;
+            SideBarTitle = string.IsNullOrWhiteSpace(wsName) ? "EXPLORER" : $"EXPLORER: {wsName.ToUpperInvariant()}";
+        }
+        else
+        {
+            SideBarTitle = SelectedActivityBarIndex switch
+            {
+                1 => "OUTLINE",
+                2 => "LIVE VARIABLES",
+                3 => "SEARCH",
+                6 => GetSourceControlSideBarTitle(),
+                _ => "EXPLORER"
+            };
+        }
     }
 
     private void UpdateToolVisibilityFlags()
@@ -463,6 +487,7 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
         });
 
         InitializeExtensibilityBridge();
+        InitializeGitSupport();
     }
 
     private void OnStudioSettingsChanged(StudioSettings s)

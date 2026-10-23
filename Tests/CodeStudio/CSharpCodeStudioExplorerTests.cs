@@ -467,6 +467,122 @@ public class CSharpCodeStudioExplorerTests : IDisposable
         Assert.True(serverFired);
     }
 
+    [Fact]
+    public void IconForFolder_ResolvesSemanticIconsAndAccents()
+    {
+        // Settings/Config
+        var (fryIcon, fryColor) = ExplorerItemViewModel.IconForFolder(".frysharp", isExpanded: false);
+        Assert.Equal("FolderCogOutline", fryIcon);
+        Assert.Equal("#8B949E", fryColor);
+
+        // Assets
+        var (assetsIcon, assetsColor) = ExplorerItemViewModel.IconForFolder("assets", isExpanded: false);
+        Assert.Equal("FolderImage", assetsIcon);
+        Assert.Equal("#C586C0", assetsColor);
+
+        // Data
+        var (dataIcon, dataColor) = ExplorerItemViewModel.IconForFolder("data", isExpanded: false);
+        Assert.Equal("FolderTable", dataIcon);
+        Assert.Equal("#75D59A", dataColor);
+
+        // Documentation
+        var (docsIcon, docsColor) = ExplorerItemViewModel.IconForFolder("docs", isExpanded: false);
+        Assert.Equal("FolderInformationOutline", docsIcon);
+        Assert.Equal("#4EC9B0", docsColor);
+
+        // Scripts
+        var (scriptsIcon, scriptsColor) = ExplorerItemViewModel.IconForFolder("scripts", isExpanded: false);
+        Assert.Equal("FolderWrenchOutline", scriptsIcon);
+        Assert.Equal("#E5C07B", scriptsColor);
+
+        // Tests
+        var (testsIcon, testsColor) = ExplorerItemViewModel.IconForFolder("tests", isExpanded: false);
+        Assert.Equal("FolderEyeOutline", testsIcon);
+        Assert.Equal("#7EE787", testsColor);
+
+        // Source
+        var (srcIcon, srcColor) = ExplorerItemViewModel.IconForFolder("src", isExpanded: false);
+        Assert.Equal("FolderCodeOutline", srcIcon);
+        Assert.Equal("#58A6FF", srcColor);
+
+        // Packages
+        var (pkgIcon, pkgColor) = ExplorerItemViewModel.IconForFolder("node_modules", isExpanded: false);
+        Assert.Equal("FolderZipOutline", pkgIcon);
+        Assert.Equal("#CE9178", pkgColor);
+
+        // Standard closed folder
+        var (normalClosed, closedColor) = ExplorerItemViewModel.IconForFolder("MyFolder", isExpanded: false);
+        Assert.Equal("FolderOutline", normalClosed);
+
+        // Standard open folder
+        var (normalOpen, openColor) = ExplorerItemViewModel.IconForFolder("MyFolder", isExpanded: true);
+        Assert.Equal("FolderOpenOutline", normalOpen);
+        Assert.Equal("#F59E0B", openColor);
+    }
+
+    [Fact]
+    public void ExplorerItemViewModel_SelectionAndTooltips_WorkForDirectories()
+    {
+        var folder = new ExplorerItemViewModel
+        {
+            Name = "DataFolder",
+            IsDirectory = true,
+            FullPath = "workspace/DataFolder"
+        };
+
+        var child1 = new ExplorerItemViewModel { Name = "file1.cs", FullPath = "workspace/DataFolder/file1.cs" };
+        var child2 = new ExplorerItemViewModel { Name = "file2.cs", FullPath = "workspace/DataFolder/file2.cs" };
+        folder.Children.Add(child1);
+        folder.Children.Add(child2);
+
+        Assert.Equal(2, folder.ItemCount);
+        Assert.Equal("2", folder.ItemCountBadge);
+        Assert.True(folder.ShowCountBadge);
+        Assert.Contains("DataFolder (2 items)", folder.ToolTipText);
+        Assert.Contains("workspace/DataFolder", folder.ToolTipText);
+
+        folder.IsExpanded = true;
+        Assert.False(folder.ShowCountBadge);
+        Assert.False(folder.IsEmptyExpandedFolder);
+
+        var emptyFolder = new ExplorerItemViewModel
+        {
+            Name = "EmptyDir",
+            IsDirectory = true,
+            IsExpanded = true
+        };
+        Assert.True(emptyFolder.IsEmptyExpandedFolder);
+
+        // Root files must never show duplicated double lines
+        var rootFile = new ExplorerItemViewModel { Name = "New Server.fryserver", FullPath = "New Server.fryserver" };
+        Assert.Equal("New Server.fryserver", rootFile.ToolTipText);
+        Assert.DoesNotContain("\n", rootFile.ToolTipText);
+
+        // Nested files show their path
+        Assert.Equal("workspace/DataFolder/file1.cs", child1.ToolTipText);
+    }
+
+    [Fact]
+    public async Task ClickingFolderInStudio_SelectsFolder()
+    {
+        var root = Path.Combine(_testBaseDir, "folder_select_ws");
+        Directory.CreateDirectory(Path.Combine(root, "docs"));
+        File.WriteAllText(Path.Combine(root, "docs", "readme.md"), "hello");
+        await _testStorage.OpenExternalProjectAsync(root);
+
+        var script = await _testStorage.CreateNewScriptAsync("Temp");
+        var studio = await CreateStudioAsync(script);
+
+        var docsFolder = studio.ExplorerRootItems.FirstOrDefault(x => x.Name == "docs" && x.IsDirectory);
+        Assert.NotNull(docsFolder);
+
+        // Click folder
+        docsFolder!.ToggleExpandCommand.Execute(null);
+
+        Assert.True(docsFolder.IsSelected);
+        Assert.Equal(docsFolder, studio.SelectedExplorerItem);
+    }
+
     private sealed class SingleThreadSynchronizationContext : SynchronizationContext
     {
         private readonly BlockingCollection<(SendOrPostCallback Callback, object? State)> _queue = new();

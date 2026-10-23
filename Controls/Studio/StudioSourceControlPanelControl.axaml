@@ -4,11 +4,11 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio;assembly=CSharpEditorPlugin"
-             xmlns:git="using:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git"
+             xmlns:git="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git;assembly=CSharpEditorPlugin"
              xmlns:studio="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Studio"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="700"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Studio.StudioSourceControlPanelControl"
-             x:DataType="vm:CSharpCodeStudioViewModel"
+             x:DataType="git:IGitStudioHostViewModel"
              x:CompileBindings="False">
 
     <Grid RowDefinitions="Auto,*">
@@ -196,7 +196,7 @@
                                     <Border Classes="git-row" Padding="2,0" Height="26" MinHeight="26">
                                         <Grid ColumnDefinitions="*,Auto,Auto">
                                             <!-- File Button (Diff) -->
-                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
+                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].DataContext.OpenChangedFileCommand}"
                                                     CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
                                                     <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
@@ -215,13 +215,13 @@
 
                                             <!-- Row Hover Actions -->
                                             <StackPanel Grid.Column="1" Classes="git-row-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                                                <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenSourceFileCommand}"
+                                                <Button Command="{Binding $parent[UserControl].DataContext.OpenSourceFileCommand}"
                                                         CommandParameter="{Binding}" Classes="git-tool-btn" Width="19" Height="19"
                                                         ToolTip.Tip="Open File">
                                                     <materialIcons:MaterialIcon Kind="OpenInApp" Width="11" Height="11"
                                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                                 </Button>
-                                                <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).UnstageFileCommand}"
+                                                <Button Command="{Binding $parent[UserControl].DataContext.UnstageFileCommand}"
                                                         CommandParameter="{Binding}" Classes="git-tool-btn" Width="19" Height="19"
                                                         ToolTip.Tip="Unstage Changes">
                                                     <materialIcons:MaterialIcon Kind="Minus" Width="11" Height="11"
@@ -282,7 +282,7 @@
                                     <Border Classes="git-row" Padding="2,0" Height="26" MinHeight="26">
                                         <Grid ColumnDefinitions="*,Auto,Auto">
                                             <!-- File Button (Diff) -->
-                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
+                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].DataContext.OpenChangedFileCommand}"
                                                     CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
                                                     <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
@@ -301,19 +301,19 @@
 
                                             <!-- Row Hover Actions -->
                                             <StackPanel Grid.Column="1" Classes="git-row-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                                                <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenSourceFileCommand}"
+                                                <Button Command="{Binding $parent[UserControl].DataContext.OpenSourceFileCommand}"
                                                         CommandParameter="{Binding}" Classes="git-tool-btn" Width="19" Height="19"
                                                         ToolTip.Tip="Open File">
                                                     <materialIcons:MaterialIcon Kind="OpenInApp" Width="11" Height="11"
                                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                                 </Button>
-                                                <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).DiscardFileChangesCommand}"
+                                                <Button Command="{Binding $parent[UserControl].DataContext.DiscardFileChangesCommand}"
                                                         CommandParameter="{Binding}" Classes="git-tool-btn" Width="19" Height="19"
                                                         ToolTip.Tip="Discard Changes">
                                                     <materialIcons:MaterialIcon Kind="Undo" Width="11" Height="11"
                                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                                 </Button>
-                                                <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).StageFileCommand}"
+                                                <Button Command="{Binding $parent[UserControl].DataContext.StageFileCommand}"
                                                         CommandParameter="{Binding}" Classes="git-tool-btn" Width="19" Height="19"
                                                         ToolTip.Tip="Stage Changes">
                                                     <materialIcons:MaterialIcon Kind="Plus" Width="12" Height="12"

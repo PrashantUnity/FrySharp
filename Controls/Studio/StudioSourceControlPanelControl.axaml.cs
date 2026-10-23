@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio;
+using PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.Controls.Studio;
 
@@ -20,7 +21,7 @@ public partial class StudioSourceControlPanelControl : UserControl
 
         if (isModifier && e.Key == Key.Return)
         {
-            if (DataContext is CSharpCodeStudioViewModel vm && vm.CommitCommand.CanExecute(null))
+            if (DataContext is IGitStudioHostViewModel vm && vm.CommitCommand.CanExecute(null))
             {
                 vm.CommitCommand.Execute(null);
                 e.Handled = true;

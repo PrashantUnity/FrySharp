@@ -5,13 +5,12 @@
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:PdfEditorApp.Plugins.CSharpEditor.ViewModels"
              xmlns:controls="using:PdfEditorApp.Plugins.CSharpEditor.Controls"
+             xmlns:studio="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Studio"
              xmlns:explorer="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer"
              xmlns:common="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              mc:Ignorable="d" d:DesignWidth="280" d:DesignHeight="600"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Studio.StudioExplorerPanelControl"
              x:CompileBindings="False">
-
-
 
     <UserControl.DataTemplates>
         <DataTemplate DataType="explorer:ExplorerItemViewModel">
@@ -20,6 +19,8 @@
                 <Button Command="{Binding ToggleExpandCommand}"
                         Classes="explorer-item-btn"
                         Classes.selected="{Binding IsSelected}"
+                        Classes.directory="{Binding IsDirectory}"
+                        ToolTip.Tip="{Binding ToolTipText}"
                         IsHitTestVisible="{Binding !IsPlaceholder}"
                         HorizontalAlignment="Stretch">
                     <Button.ContextFlyout>
@@ -66,6 +67,11 @@
                                 </MenuItem.Icon>
                             </MenuItem>
                             <Separator />
+                            <MenuItem Header="{Binding RevealInFileManagerLabel}" Command="{Binding RequestRevealInFileManagerCommand}">
+                                <MenuItem.Icon>
+                                    <materialIcons:MaterialIcon Kind="FolderEyeOutline" Width="14" Height="14" Foreground="{DynamicResource DsPrimaryBrush}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem Header="Copy Relative Path" Command="{Binding RequestCopyRelativePathCommand}">
                                 <MenuItem.Icon>
                                     <materialIcons:MaterialIcon Kind="FileTreeOutline" Width="14" Height="14" />
@@ -78,41 +84,79 @@
                             </MenuItem>
                         </MenuFlyout>
                     </Button.ContextFlyout>
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="{Binding IndentPadding}">
-                        <!-- Col 0: Chevron Expander for Folders -->
-                        <Border Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center">
-                            <materialIcons:MaterialIcon Kind="{Binding ChevronKind}"
-                                                        Width="12" Height="12"
-                                                        Foreground="{DynamicResource DsMutedBrush}"
-                                                        VerticalAlignment="Center"
-                                                        HorizontalAlignment="Center"
-                                                        IsVisible="{Binding IsDirectory}" />
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                        <!-- Col 0: Tree Indent Guides -->
+                        <studio:TreeIndentGuideControl Grid.Column="0"
+                                                       Depth="{Binding Depth}"
+                                                       IndentWidth="14"
+                                                       GuideBrush="{DynamicResource DsBorderBrush}"
+                                                       VerticalAlignment="Stretch"
+                                                       Margin="2,0,0,0" />
+
+                        <!-- Col 1: Chevron Expander for Folders -->
+                        <Border Grid.Column="1" Width="16" Height="16" VerticalAlignment="Center">
+                            <Button Command="{Binding ToggleChevronCommand}"
+                                    Width="16" Height="16" Padding="0"
+                                    Background="Transparent" BorderThickness="0"
+                                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    IsVisible="{Binding IsDirectory}"
+                                    Cursor="Hand">
+                                <materialIcons:MaterialIcon Kind="{Binding ChevronKind}"
+                                                            Width="12" Height="12"
+                                                            Foreground="{DynamicResource DsMutedBrush}"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalAlignment="Center" />
+                            </Button>
                         </Border>
 
-                        <!-- Col 1: Icon (Folder / Script) -->
-                        <materialIcons:MaterialIcon Grid.Column="1"
+                        <!-- Col 2: Icon (Folder / Script) -->
+                        <materialIcons:MaterialIcon Grid.Column="2"
                                                     Kind="{Binding IconKind}"
                                                     Width="15" Height="15"
                                                     Foreground="{Binding IconColor}"
                                                     VerticalAlignment="Center"
                                                     Margin="2,0,6,0" />
 
-                        <!-- Col 2: Name (Normal View) -->
-                        <DockPanel Grid.Column="2" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
+                        <!-- Col 3: Name & Badges (Normal View) -->
+                        <DockPanel Grid.Column="3" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
+                            <!-- Git status letter -->
                             <Border DockPanel.Dock="Right" Margin="4,0,4,0" Width="14" Height="14" VerticalAlignment="Center"
                                     IsVisible="{Binding GitStatusLetter, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                 <TextBlock Text="{Binding GitStatusLetter}" lt:Tokens.FontSize="DsFontSize075" lt:Tokens.FontWeight="DsWeightStrong"
                                            Foreground="{Binding GitStatusColorHex}" TextAlignment="Center" />
                             </Border>
-                            <TextBlock Text="{Binding Name}"
+
+                            <!-- Collapsed folder item count badge -->
+                            <Border DockPanel.Dock="Right" Margin="4,0,4,0" Padding="4,0"
+                                    Background="{DynamicResource DsSurfaceHighBrush}"
+                                    lt:Tokens.CornerRadius="DsRadiusXS"
+                                    VerticalAlignment="Center"
+                                    IsVisible="{Binding ShowCountBadge}">
+                                <TextBlock Text="{Binding ItemCountBadge}"
+                                           lt:Tokens.FontSize="DsFontSize075"
+                                           Foreground="{DynamicResource DsMutedBrush}"
+                                           VerticalAlignment="Center" />
+                            </Border>
+
+                            <!-- Empty folder feedback -->
+                            <TextBlock DockPanel.Dock="Right" Text="(empty)"
+                                       lt:Tokens.FontSize="DsFontSize200"
+                                       FontStyle="Italic"
+                                       Foreground="{DynamicResource DsMutedBrush}"
+                                       Margin="6,0,4,0"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding IsEmptyExpandedFolder}" />
+
+                            <!-- Item Name -->
+                            <TextBlock Classes="item-label"
+                                       Text="{Binding Name}"
                                        lt:Tokens.FontSize="DsFontSize300"
-                                       Foreground="{DynamicResource DsTextWhiteBrush}"
                                        VerticalAlignment="Center"
                                        TextTrimming="CharacterEllipsis" />
                         </DockPanel>
 
-                        <!-- Col 2: Rename TextBox (Edit View) -->
-                        <TextBox Grid.Column="2"
+                        <!-- Col 3: Rename TextBox (Edit View) -->
+                        <TextBox Grid.Column="3"
                                  Classes="explorer-rename-box"
                                  Text="{Binding EditName, Mode=TwoWay}"
                                  Margin="0,0,6,0"
@@ -126,8 +170,8 @@
                             </TextBox.KeyBindings>
                         </TextBox>
 
-                        <!-- Col 3: Action Buttons (Only visible on hover!) -->
-                        <StackPanel Grid.Column="3"
+                        <!-- Col 4: Action Buttons (Only visible on hover!) -->
+                        <StackPanel Grid.Column="4"
                                     Classes="explorer-row-actions"
                                     Orientation="Horizontal"
                                     Spacing="2"
@@ -146,6 +190,13 @@
                                     ToolTip.Tip="New Folder Here"
                                     IsVisible="{Binding IsManageableDirectory}">
                                 <materialIcons:MaterialIcon Kind="FolderPlusOutline" Width="12" Height="12" Foreground="{DynamicResource DsMutedBrush}" />
+                            </Button>
+                            <Button Command="{Binding StartRenameCommand}"
+                                    Classes="explorer-tool-btn"
+                                    Width="19" Height="19"
+                                    ToolTip.Tip="Rename (F2)"
+                                    IsVisible="{Binding !IsExternalGroup}">
+                                <materialIcons:MaterialIcon Kind="RenameOutline" Width="12" Height="12" Foreground="{DynamicResource DsMutedBrush}" />
                             </Button>
                             <Button Command="{Binding RequestDuplicateCommand}"
                                     Classes="explorer-tool-btn"
@@ -204,7 +255,8 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.Template>
             <ControlTemplate>
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              KeyDown="OnExplorerKeyDown" Focusable="True">
                     <ScrollViewer.ContextFlyout>
                         <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnRootMenuOpening">
                             <MenuItem Header="New Script" Command="{Binding NewScriptCommand}">

@@ -191,6 +191,7 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
         item.OnDuplicateRequested = i => _ = DuplicateAsync(i);
         item.OnCopyPathRequested = i => _ = CopyAsync(AbsolutePath(i), "full path");
         item.OnCopyRelativePathRequested = i => _ = CopyAsync(i.FullPath, "relative path");
+        item.OnRevealInFileManagerRequested = i => _ = RevealInFileManagerAsync(i);
         return item;
     }
 
@@ -231,14 +232,47 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
     private async Task OpenAsync(ExplorerItemViewModel item)
     {
         if (item.IsPlaceholder) return;
+        foreach (var other in All(ExplorerRootItems)) other.IsSelected = ReferenceEquals(other, item);
         if (item.IsDirectory)
         {
-            item.IsExpanded = !item.IsExpanded;
             return;
         }
 
-        foreach (var other in All(ExplorerRootItems)) other.IsSelected = ReferenceEquals(other, item);
         await _open(item);
+    }
+
+    private Task RevealInFileManagerAsync(ExplorerItemViewModel item)
+    {
+        var fullPath = AbsolutePath(item);
+        if (string.IsNullOrWhiteSpace(fullPath) || (!System.IO.File.Exists(fullPath) && !System.IO.Directory.Exists(fullPath))) return Task.CompletedTask;
+
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
+                Process.Start("open", $"\"{target}\"");
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = item.IsDirectory ? $"\"{fullPath}\"" : $"/select,\"{fullPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
+                Process.Start("xdg-open", $"\"{target}\"");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CSharpEditorPlugin] Reveal in file manager failed: {ex.Message}");
+        }
+        return Task.CompletedTask;
     }
 
     /// <summary>A new document of the studio's kind in the selected folder (or the top), named by the user next.</summary>

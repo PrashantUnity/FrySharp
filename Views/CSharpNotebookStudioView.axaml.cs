@@ -273,6 +273,14 @@ public partial class CSharpNotebookStudioView : UserControl
             return;
         }
 
+        // VS Code Shortcut: Ctrl+Shift+G -> Focus Source Control / Git
+        if (isCmdOrCtrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.G)
+        {
+            vm.SelectActivityBarItem(6);
+            e.Handled = true;
+            return;
+        }
+
         if (isCmdOrCtrl && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.O)
         {
             _ = OpenProjectOrFileDialogAsync();

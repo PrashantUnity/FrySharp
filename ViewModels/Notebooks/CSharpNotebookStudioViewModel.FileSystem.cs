@@ -197,6 +197,43 @@ public partial class CSharpNotebookStudioViewModel
     }
 
     [RelayCommand]
+    public void RevealItemInFileManager(ExplorerItemViewModel item)
+    {
+        if (item == null) return;
+        var rel = !string.IsNullOrEmpty(item.FullPath) ? item.FullPath : item.Name;
+        var fullPath = Path.IsPathRooted(rel) ? rel : Path.GetFullPath(Path.Combine(_storageService.ActiveWorkspaceRootPath, rel.Replace('/', Path.DirectorySeparatorChar)));
+
+        if (string.IsNullOrWhiteSpace(fullPath) || (!File.Exists(fullPath) && !Directory.Exists(fullPath))) return;
+
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
+                Process.Start("open", $"\"{target}\"");
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = item.IsDirectory ? $"\"{fullPath}\"" : $"/select,\"{fullPath}\"",
+                    UseShellExecute = true
+                });
+            }
+            else if (OperatingSystem.IsLinux())
+            {
+                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
+                Process.Start("xdg-open", $"\"{target}\"");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CSharpEditorPlugin] Reveal in file manager failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
     public async Task NewFile()
     {
         var selected = FindSelectedItem(ExplorerRootItems);

@@ -90,6 +90,22 @@ public class CSharpNotebookStudioVsCodeLayoutTests : IDisposable
     }
 
     [Fact]
+    public void SelectActivityBarItem_Index6_ActivatesSourceControl()
+    {
+        var studio = CreateStudio();
+        studio.IsSideBarVisible = false;
+
+        Assert.False(studio.IsSourceControlActive);
+
+        studio.SelectActivityBarItem(6);
+
+        Assert.Equal(6, studio.SelectedActivityBarIndex);
+        Assert.True(studio.IsSourceControlActive);
+        Assert.StartsWith("SOURCE CONTROL", studio.SideBarTitle);
+        Assert.True(studio.IsSideBarVisible);
+    }
+
+    [Fact]
     public void SelectActivityBarItem_WhenAlreadyActive_TogglesVisibility()
     {
         var studio = CreateStudio();
@@ -112,7 +128,7 @@ public class CSharpNotebookStudioVsCodeLayoutTests : IDisposable
     {
         var studio = CreateStudio();
 
-        // XAML passes string command parameters like "1", "2", "3"
+        // XAML passes string command parameters like "1", "2", "3", "6"
         Assert.True((bool)studio.SelectActivityBarItemCommand.CanExecute("1"));
         studio.SelectActivityBarItemCommand.Execute("1");
 
@@ -126,6 +142,20 @@ public class CSharpNotebookStudioVsCodeLayoutTests : IDisposable
         Assert.Equal(2, studio.SelectedActivityBarIndex);
         Assert.True(studio.IsVariablesActive);
         Assert.Equal((string?)"LIVE VARIABLES", (string?)studio.SideBarTitle);
+
+        Assert.True((bool)studio.SelectActivityBarItemCommand.CanExecute("6"));
+        studio.SelectActivityBarItemCommand.Execute("6");
+
+        Assert.Equal(6, studio.SelectedActivityBarIndex);
+        Assert.True(studio.IsSourceControlActive);
+        Assert.StartsWith("SOURCE CONTROL", studio.SideBarTitle);
+    }
+
+    [Fact]
+    public void NotebookStudio_ImplementsIGitStudioHostViewModel()
+    {
+        var studio = CreateStudio();
+        Assert.IsAssignableFrom<PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git.IGitStudioHostViewModel>(studio);
     }
 
     [Fact]

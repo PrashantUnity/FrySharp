@@ -95,19 +95,47 @@
     <!-- Explorer Tree Items -->
     <Style Selector="Button.explorer-item-btn">
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="lt:Tokens.BorderThickness" Value="=0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="lt:Tokens.BorderThickness" Value="=2,0,0,0" />
         <Setter Property="Padding" Value="4,2" />
+        <Setter Property="MinHeight" Value="24" />
         <Setter Property="lt:Tokens.CornerRadius" Value="DsRadiusSM" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.08" />
+            </Transitions>
+        </Setter>
     </Style>
     <Style Selector="Button.explorer-item-btn:pointerover">
         <Setter Property="Background" Value="{DynamicResource DsSurfaceHoverBrush}" />
     </Style>
     <Style Selector="Button.explorer-item-btn.selected">
         <Setter Property="Background" Value="{DynamicResource DsSurfaceHighBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource DsPrimaryBrush}" />
+        <Setter Property="lt:Tokens.BorderThickness" Value="=2,0,0,0" />
     </Style>
+    <Style Selector="Button.explorer-item-btn.selected:pointerover">
+        <Setter Property="Background" Value="{DynamicResource DsSurfaceHighBrush}" />
+    </Style>
+
+    <!-- Item Label Typography -->
+    <Style Selector="Button.explorer-item-btn.directory TextBlock.item-label">
+        <Setter Property="lt:Tokens.FontWeight" Value="DsWeightLabel" />
+        <Setter Property="Foreground" Value="{DynamicResource DsTextWhiteBrush}" />
+    </Style>
+    <Style Selector="Button.explorer-item-btn:not(.directory) TextBlock.item-label">
+        <Setter Property="Foreground" Value="{DynamicResource DsTextBrush}" />
+    </Style>
+    <Style Selector="Button.explorer-item-btn.selected TextBlock.item-label">
+        <Setter Property="Foreground" Value="{DynamicResource DsTextWhiteBrush}" />
+    </Style>
+    <Style Selector="Button.explorer-item-btn:pointerover TextBlock.item-label">
+        <Setter Property="Foreground" Value="{DynamicResource DsTextWhiteBrush}" />
+    </Style>
+
     <Style Selector="Button.explorer-item-btn StackPanel.explorer-row-actions">
         <Setter Property="Opacity" Value="0" />
     </Style>

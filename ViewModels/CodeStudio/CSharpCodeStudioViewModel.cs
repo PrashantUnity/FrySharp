@@ -20,7 +20,7 @@ using PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio;
 
-public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewFileHost, IPageLifecycle
+public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewFileHost, IPageLifecycle, Git.IGitStudioHostViewModel
 {
     private readonly IScriptStorageService _storageService;
     private readonly RoslynCompilerService _compilerService;

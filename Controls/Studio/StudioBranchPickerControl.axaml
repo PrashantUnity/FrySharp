@@ -4,10 +4,11 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio;assembly=CSharpEditorPlugin"
-             xmlns:git="using:PdfEditorApp.Plugins.CSharpEditor.Models.Git"
+             xmlns:git="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Models.Git;assembly=FrySharp.Core"
+             xmlns:gitvm="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git;assembly=CSharpEditorPlugin"
              mc:Ignorable="d" d:DesignWidth="300" d:DesignHeight="360"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Studio.StudioBranchPickerControl"
-             x:DataType="vm:CSharpCodeStudioViewModel"
+             x:DataType="gitvm:IGitStudioHostViewModel"
              Width="290" MaxHeight="380"
              Background="{DynamicResource DsSurfaceBrush}">
 
@@ -64,7 +65,7 @@
                 <ItemsControl ItemsSource="{Binding FilteredBranches}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="git:GitBranchItem">
-                            <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).CheckoutBranchCommand}"
+                            <Button Command="{Binding $parent[UserControl].DataContext.CheckoutBranchCommand}"
                                     CommandParameter="{Binding}" Classes="branch-item-btn">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                     <!-- Branch Icon -->
