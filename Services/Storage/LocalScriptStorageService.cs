@@ -640,6 +640,10 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             var nb = await Task.Run(() => NotebookFileFormat.Read(file, json, _languages)).ConfigureAwait(false);
             if (nb != null)
             {
+                if (file.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase))
+                {
+                    nb.Id = Path.GetFileName(file);
+                }
                 bool migrated = false;
                 foreach (var cell in nb.Cells)
                 {
@@ -670,9 +674,12 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         try
         {
             notebook.LastModified = DateTime.UtcNow;
-            var json = NotebookFileFormat.WriteFrynb(notebook);
+            var ext = notebook.Id.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? ".ipynb" :
+                      notebook.Id.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase) ? ".csnb" : ".frynb";
+            var kind = ext == ".ipynb" ? NotebookFileKind.Ipynb : NotebookFileKind.Frynb;
+            var json = NotebookFileFormat.Write(notebook, kind, _languages);
 
-            var existing = await FindExistingFilePathAsync(notebook.Id, ".frynb");
+            var existing = await FindExistingFilePathAsync(notebook.Id, ext);
             if (existing != null)
             {
                 await File.WriteAllTextAsync(existing, json);
@@ -680,7 +687,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
                 return true;
             }
 
-            await WriteNewDocumentAsync(notebook.Id, ".frynb", folderPath, json, notebook.Title);
+            await WriteNewDocumentAsync(notebook.Id, ext, folderPath, json, notebook.Title);
             return true;
         }
         catch (Exception ex)

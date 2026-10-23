@@ -39,7 +39,7 @@ public class ScriptExecutionEngine
 
             try
             {
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
                     using var ms = new MemoryStream(assemblyBytes);
                     var assembly = context.LoadFromStream(ms);
@@ -62,7 +62,19 @@ public class ScriptExecutionEngine
                     var returnVal = entryPoint.Invoke(null, args);
                     if (returnVal is Task task)
                     {
-                        task.GetAwaiter().GetResult();
+                        await task;
+                    }
+                    else if (returnVal is ValueTask vt)
+                    {
+                        await vt;
+                    }
+                    else if (returnVal != null && returnVal.GetType().IsGenericType && returnVal.GetType().GetGenericTypeDefinition() == typeof(ValueTask<>))
+                    {
+                        var asTaskMethod = returnVal.GetType().GetMethod("AsTask");
+                        if (asTaskMethod?.Invoke(returnVal, null) is Task vtask)
+                        {
+                            await vtask;
+                        }
                     }
                 }, ct);
 

@@ -75,7 +75,6 @@
                                     <!-- Branch Name -->
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" lt:Tokens.FontSize="DsFontSize200"
                                                Foreground="{DynamicResource DsTextWhiteBrush}"
-                                               FontWeight="{Binding IsCurrent, Converter={x:Static ObjectConverters.IsNull}}"
                                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 
                                     <!-- Remote Badge -->

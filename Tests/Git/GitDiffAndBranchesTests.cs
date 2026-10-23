@@ -213,6 +213,49 @@ public class GitDiffAndBranchesTests : IDisposable
         Assert.Equal("feat(git): update GitService.cs", studio.GitCommitMessage);
     }
 
+    [Fact]
+    public async Task GitDiffTab_SaveDocument_NeverOverwritesFileOnDisk()
+    {
+        var fakeGit = new TestDiffGitService();
+        var studio = CreateStudio(fakeGit);
+
+        var tempFile = Path.Combine(_testBaseDir, "RealSourceCode.cs");
+        await File.WriteAllTextAsync(tempFile, "public class KeepMeSafe { }");
+
+        var syntheticDoc = new ScriptDocumentItem
+        {
+            Id = $"git-diff:{tempFile}",
+            Title = "RealSourceCode.cs (Working Tree)",
+            SourceFilePath = tempFile,
+            IsReadOnly = true,
+            Code = ""
+        };
+
+        // Attempt saving via storage service
+        var savedStorage = await _testStorage.SaveSourceFileAsync(syntheticDoc, overwriteChangesOnDisk: true);
+        Assert.True(savedStorage);
+
+        // Verify the real file was untouched
+        var onDisk = await File.ReadAllTextAsync(tempFile);
+        Assert.Equal("public class KeepMeSafe { }", onDisk);
+    }
+
+    [Fact]
+    public async Task BranchPicker_CreateAndCheckoutBranch_UsesFilterTextWhenNewBranchNameEmpty()
+    {
+        var fakeGit = new TestDiffGitService();
+        var studio = CreateStudio(fakeGit);
+
+        studio.NewBranchName = string.Empty;
+        studio.BranchFilterText = "feature/new-from-filter";
+
+        await studio.CreateAndCheckoutBranchCommand.ExecuteAsync(null);
+
+        Assert.Equal("feature/new-from-filter", fakeGit.CreatedBranch);
+        Assert.Equal(string.Empty, studio.BranchFilterText);
+        Assert.Equal(string.Empty, studio.NewBranchName);
+    }
+
     private CSharpCodeStudioViewModel CreateStudio(IGitService gitService)
     {
         var doc = new ScriptDocumentItem

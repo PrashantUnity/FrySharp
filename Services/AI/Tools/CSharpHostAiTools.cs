@@ -186,17 +186,17 @@ public class CSharpHostAiTools
     [Description("Executes the active script or notebook cell in FrySharp.")]
     public async Task<string> RunScript()
     {
-        _navigateToStudio?.Invoke();
         var host = GetVm();
-        if (host?.CurrentPage is CSharpCodeStudioViewModel activeCode)
-        {
-            await RunOnUiAsync(() => TriggerCodeRun(activeCode));
-            return JsonSerializer.Serialize(new { Success = true, Message = "Execution started in Code Studio." });
-        }
         if (host?.CurrentPage is CSharpNotebookStudioViewModel activeNb)
         {
             await RunOnUiAsync(() => activeNb.RunCellAndSelectNextCommand.Execute(null));
             return JsonSerializer.Serialize(new { Success = true, Message = "Execution started in Notebook Studio." });
+        }
+        _navigateToStudio?.Invoke();
+        if (host?.CurrentPage is CSharpCodeStudioViewModel activeCode)
+        {
+            await RunOnUiAsync(() => TriggerCodeRun(activeCode));
+            return JsonSerializer.Serialize(new { Success = true, Message = "Execution started in Code Studio." });
         }
         if (host?.CodeStudioViewModel != null)
         {
@@ -408,7 +408,7 @@ public class CSharpHostAiTools
         var lang = host.Languages.Registry.FindByExtension(filePath);
         var item = new ScriptDocumentItem
         {
-            Id = Path.GetFileName(filePath),
+            Id = ScriptStorageIdHelper.SourceFileId(filePath),
             Title = Path.GetFileName(filePath),
             SourceFilePath = filePath,
             LanguageId = lang?.Id ?? "csharp",

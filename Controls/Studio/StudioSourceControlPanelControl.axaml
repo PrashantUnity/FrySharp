@@ -164,51 +164,54 @@
                     <!-- Section: Staged Changes -->
                     <StackPanel Spacing="2" IsVisible="{Binding HasStagedChanges}">
                         <!-- Header -->
-                        <Button Command="{Binding ToggleStagedSectionCommand}" Classes="git-row-btn" Padding="4,4" Height="26" MinHeight="26">
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                <materialIcons:MaterialIcon Grid.Column="0"
-                                                            Kind="{Binding StagedSectionChevronKind}"
-                                                            Width="12" Height="12" Margin="0,0,4,0"
-                                                            Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1" Text="STAGED CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
-                                           Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                
-                                <!-- Count Badge Pill -->
-                                <Border Grid.Column="2" Background="{DynamicResource DsSurfaceHighBrush}"
-                                        lt:Tokens.CornerRadius="DsRadiusXS" Padding="5,1" Margin="4,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding StagedChanges.Count}" lt:Tokens.FontSize="DsFontSize075" lt:Tokens.FontWeight="DsWeightStrong"
-                                               Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                </Border>
-
-                                <Button Grid.Column="3" Command="{Binding UnstageAllCommand}"
-                                        Classes="git-tool-btn" Width="20" Height="20" ToolTip.Tip="Unstage All Changes">
-                                    <materialIcons:MaterialIcon Kind="Minus" Width="12" Height="12"
+                        <Grid ColumnDefinitions="*,Auto,Auto" Height="26" MinHeight="26">
+                            <Button Grid.Column="0" Command="{Binding ToggleStagedSectionCommand}" Classes="git-row-btn" Padding="4,4">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <materialIcons:MaterialIcon Kind="{Binding StagedSectionChevronKind}"
+                                                                Width="12" Height="12"
                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                </Button>
-                            </Grid>
-                        </Button>
+                                    <TextBlock Text="STAGED CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
+                                               Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Count Badge Pill -->
+                            <Border Grid.Column="1" Background="{DynamicResource DsSurfaceHighBrush}"
+                                    lt:Tokens.CornerRadius="DsRadiusXS" Padding="5,1" Margin="4,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding StagedChanges.Count}" lt:Tokens.FontSize="DsFontSize075" lt:Tokens.FontWeight="DsWeightStrong"
+                                           Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                            </Border>
+
+                            <Button Grid.Column="2" Command="{Binding UnstageAllCommand}"
+                                    Classes="git-tool-btn" Width="20" Height="20" ToolTip.Tip="Unstage All Changes" VerticalAlignment="Center">
+                                <materialIcons:MaterialIcon Kind="Minus" Width="12" Height="12"
+                                                            Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                            </Button>
+                        </Grid>
 
                         <!-- Staged Items -->
                         <ItemsControl ItemsSource="{Binding StagedChanges}" IsVisible="{Binding IsStagedSectionExpanded}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="git:GitFileChangeItemViewModel">
-                                    <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
-                                            CommandParameter="{Binding}" Classes="git-row-btn" Padding="6,2" Height="26" MinHeight="26">
+                                    <Border Classes="git-row" Padding="2,0" Height="26" MinHeight="26">
                                         <Grid ColumnDefinitions="*,Auto,Auto">
-                                            <!-- File Icon & Name & Dir -->
-                                            <Grid Grid.Column="0" ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
-                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
-                                                                            Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
-                                                           lt:Tokens.FontSize="DsFontSize200"
-                                                           Foreground="{DynamicResource DsTextWhiteBrush}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="{Binding DirectoryDisplay}"
-                                                           IsVisible="{Binding HasDirectory}"
-                                                           lt:Tokens.FontSize="DsFontSize075"
-                                                           Foreground="{DynamicResource DsMutedBrush}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                            </Grid>
+                                            <!-- File Button (Diff) -->
+                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
+                                                    CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
+                                                <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
+                                                                                Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
+                                                               lt:Tokens.FontSize="DsFontSize200"
+                                                               Foreground="{DynamicResource DsTextWhiteBrush}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding DirectoryDisplay}"
+                                                               IsVisible="{Binding HasDirectory}"
+                                                               lt:Tokens.FontSize="DsFontSize075"
+                                                               Foreground="{DynamicResource DsMutedBrush}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                                </Grid>
+                                            </Button>
 
                                             <!-- Row Hover Actions -->
                                             <StackPanel Grid.Column="1" Classes="git-row-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
@@ -233,7 +236,7 @@
                                                            ToolTip.Tip="{Binding TooltipText}" />
                                             </Border>
                                         </Grid>
-                                    </Button>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -242,56 +245,59 @@
                     <!-- Section: Changes (Working Tree) -->
                     <StackPanel Spacing="2">
                         <!-- Header -->
-                        <Button Command="{Binding ToggleWorkingSectionCommand}" Classes="git-row-btn" Padding="4,4" Height="26" MinHeight="26">
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                                <materialIcons:MaterialIcon Grid.Column="0"
-                                                            Kind="{Binding WorkingSectionChevronKind}"
-                                                            Width="12" Height="12" Margin="0,0,4,0"
-                                                            Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="1" Text="CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
-                                           Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                
-                                <!-- Count Badge Pill -->
-                                <Border Grid.Column="2" Background="{DynamicResource DsSurfaceHighBrush}"
-                                        lt:Tokens.CornerRadius="DsRadiusXS" Padding="5,1" Margin="4,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding WorkingChanges.Count}" lt:Tokens.FontSize="DsFontSize075" lt:Tokens.FontWeight="DsWeightStrong"
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Height="26" MinHeight="26">
+                            <Button Grid.Column="0" Command="{Binding ToggleWorkingSectionCommand}" Classes="git-row-btn" Padding="4,4">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <materialIcons:MaterialIcon Kind="{Binding WorkingSectionChevronKind}"
+                                                                Width="12" Height="12"
+                                                                Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Text="CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
                                                Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                </Border>
+                                </StackPanel>
+                            </Button>
 
-                                <Button Grid.Column="3" Command="{Binding DiscardAllChangesCommand}"
-                                        Classes="git-tool-btn" Width="20" Height="20" Margin="0,0,2,0" ToolTip.Tip="Discard All Changes">
-                                    <materialIcons:MaterialIcon Kind="Undo" Width="12" Height="12"
-                                                                Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                </Button>
-                                <Button Grid.Column="4" Command="{Binding StageAllCommand}"
-                                        Classes="git-tool-btn" Width="20" Height="20" ToolTip.Tip="Stage All Changes">
-                                    <materialIcons:MaterialIcon Kind="Plus" Width="12" Height="12"
-                                                                Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
-                                </Button>
-                            </Grid>
-                        </Button>
+                            <!-- Count Badge Pill -->
+                            <Border Grid.Column="1" Background="{DynamicResource DsSurfaceHighBrush}"
+                                    lt:Tokens.CornerRadius="DsRadiusXS" Padding="5,1" Margin="4,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding WorkingChanges.Count}" lt:Tokens.FontSize="DsFontSize075" lt:Tokens.FontWeight="DsWeightStrong"
+                                           Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                            </Border>
+
+                            <Button Grid.Column="2" Command="{Binding DiscardAllChangesCommand}"
+                                    Classes="git-tool-btn" Width="20" Height="20" Margin="0,0,2,0" ToolTip.Tip="Discard All Changes" VerticalAlignment="Center">
+                                <materialIcons:MaterialIcon Kind="Undo" Width="12" Height="12"
+                                                            Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                            </Button>
+                            <Button Grid.Column="3" Command="{Binding StageAllCommand}"
+                                    Classes="git-tool-btn" Width="20" Height="20" ToolTip.Tip="Stage All Changes" VerticalAlignment="Center">
+                                <materialIcons:MaterialIcon Kind="Plus" Width="12" Height="12"
+                                                            Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
+                            </Button>
+                        </Grid>
 
                         <!-- Changes Items -->
                         <ItemsControl ItemsSource="{Binding WorkingChanges}" IsVisible="{Binding IsWorkingSectionExpanded}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="git:GitFileChangeItemViewModel">
-                                    <Button Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
-                                            CommandParameter="{Binding}" Classes="git-row-btn" Padding="6,2" Height="26" MinHeight="26">
+                                    <Border Classes="git-row" Padding="2,0" Height="26" MinHeight="26">
                                         <Grid ColumnDefinitions="*,Auto,Auto">
-                                            <!-- File Icon & Name & Dir -->
-                                            <Grid Grid.Column="0" ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
-                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
-                                                                            Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
-                                                           lt:Tokens.FontSize="DsFontSize200"
-                                                           Foreground="{DynamicResource DsTextWhiteBrush}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="{Binding DirectoryDisplay}"
-                                                           IsVisible="{Binding HasDirectory}"
-                                                           lt:Tokens.FontSize="DsFontSize075"
-                                                           Foreground="{DynamicResource DsMutedBrush}"
-                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                            </Grid>
+                                            <!-- File Button (Diff) -->
+                                            <Button Grid.Column="0" Command="{Binding $parent[UserControl].((vm:CSharpCodeStudioViewModel)DataContext).OpenChangedFileCommand}"
+                                                    CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
+                                                <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
+                                                                                Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
+                                                               lt:Tokens.FontSize="DsFontSize200"
+                                                               Foreground="{DynamicResource DsTextWhiteBrush}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding DirectoryDisplay}"
+                                                               IsVisible="{Binding HasDirectory}"
+                                                               lt:Tokens.FontSize="DsFontSize075"
+                                                               Foreground="{DynamicResource DsMutedBrush}"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                                </Grid>
+                                            </Button>
 
                                             <!-- Row Hover Actions -->
                                             <StackPanel Grid.Column="1" Classes="git-row-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
@@ -322,7 +328,7 @@
                                                            ToolTip.Tip="{Binding TooltipText}" />
                                             </Border>
                                         </Grid>
-                                    </Button>
+                                    </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

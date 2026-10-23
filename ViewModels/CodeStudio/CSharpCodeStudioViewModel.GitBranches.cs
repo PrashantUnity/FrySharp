@@ -120,9 +120,10 @@ public partial class CSharpCodeStudioViewModel
     [RelayCommand]
     public async Task CreateAndCheckoutBranchAsync()
     {
-        if (string.IsNullOrWhiteSpace(NewBranchName) || string.IsNullOrWhiteSpace(_storageService?.ActiveWorkspaceRootPath)) return;
+        var branchName = !string.IsNullOrWhiteSpace(NewBranchName) ? NewBranchName : BranchFilterText;
+        if (string.IsNullOrWhiteSpace(branchName) || string.IsNullOrWhiteSpace(_storageService?.ActiveWorkspaceRootPath)) return;
         var root = _storageService.ActiveWorkspaceRootPath;
-        var targetName = NewBranchName.Trim();
+        var targetName = branchName.Trim();
 
         try
         {

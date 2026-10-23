@@ -314,6 +314,11 @@ public partial class LocalScriptStorageService
         var path = document.SourceFilePath ?? await FindSourceFilePathAsync(document.Id);
         if (path == null) return false;
 
+        if (document.IsReadOnly || document.Id.StartsWith("git-diff:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         SourceFileState? state;
         lock (_sourceGate) _sourceFiles.TryGetValue(document.Id, out state);
 

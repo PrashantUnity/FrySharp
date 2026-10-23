@@ -52,6 +52,10 @@ public static partial class NotebookFileFormat
     public static NotebookDocumentItem Read(string path, string text, ILanguageCatalog languages)
     {
         var notebook = KindOf(path) == NotebookFileKind.Ipynb ? ReadIpynb(text, languages) : ReadFrynb(text);
+        if (KindOf(path) == NotebookFileKind.Ipynb)
+        {
+            notebook.Id = Path.GetFileName(path);
+        }
         if (string.IsNullOrWhiteSpace(notebook.Title) || notebook.Title == new NotebookDocumentItem().Title)
         {
             notebook.Title = Path.GetFileNameWithoutExtension(path);

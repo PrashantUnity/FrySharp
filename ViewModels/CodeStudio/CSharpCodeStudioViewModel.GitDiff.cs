@@ -84,7 +84,8 @@ public partial class CSharpCodeStudioViewModel
                 Title = $"{changeItem.FileName} ({kindLabel})",
                 Description = $"Git Diff: {changeItem.RelativePath}",
                 SourceFilePath = fullPath,
-                IsEphemeral = true
+                IsEphemeral = true,
+                IsReadOnly = true
             };
 
             var diffTab = CreateTab(syntheticDoc, isActive: true);

@@ -168,6 +168,42 @@ public class LocalScriptStorageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveNotebookAsync_IpynbFormat_PreservesIpynbFormatAndDoesNotCreateFrynb()
+    {
+        var storage = new LocalScriptStorageService(_baseDir);
+        await storage.LoadWorkspaceSummariesAsync();
+
+        var libraryRoot = Path.Combine(_baseDir, "library");
+        Directory.CreateDirectory(libraryRoot);
+        var ipynbPath = Path.Combine(libraryRoot, "analysis.ipynb");
+        const string initialIpynb = """
+            {
+              "cells": [
+                { "cell_type": "code", "id": "c1", "execution_count": 1, "metadata": {}, "source": ["print(123)"] }
+              ],
+              "metadata": { "language_info": { "name": "python" } },
+              "nbformat": 4, "nbformat_minor": 5
+            }
+            """;
+        await File.WriteAllTextAsync(ipynbPath, initialIpynb);
+
+        var loaded = await storage.LoadNotebookAsync("analysis.ipynb");
+        Assert.NotNull(loaded);
+        loaded.Cells[0].Source = "print(456)";
+
+        var saved = await storage.SaveNotebookAsync(loaded);
+        Assert.True(saved);
+
+        // Verify the original .ipynb file was updated with new content
+        var updatedText = await File.ReadAllTextAsync(ipynbPath);
+        Assert.Contains("print(456)", updatedText);
+
+        // Verify no ghost .frynb file was created
+        var frynbFiles = Directory.EnumerateFiles(libraryRoot, "*.frynb", SearchOption.AllDirectories).ToList();
+        Assert.Empty(frynbFiles);
+    }
+
+    [Fact]
     public async Task DeleteItemAsync_FileNameDoesNotMatchInternalId_ActuallyDeletesTheFile()
     {
         var storage = new LocalScriptStorageService(_baseDir);

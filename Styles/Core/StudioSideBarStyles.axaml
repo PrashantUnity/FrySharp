@@ -161,11 +161,24 @@
     <Style Selector="Button.git-row-btn:pointerover">
         <Setter Property="Background" Value="{DynamicResource DsSurfaceHighBrush}" />
     </Style>
-    <Style Selector="Button.git-row-btn StackPanel.git-row-actions">
+    <Style Selector="Border.git-row">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="lt:Tokens.CornerRadius" Value="DsRadiusSM" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.1" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.git-row:pointerover">
+        <Setter Property="Background" Value="{DynamicResource DsSurfaceHighBrush}" />
+    </Style>
+    <Style Selector="Button.git-row-btn StackPanel.git-row-actions, Border.git-row StackPanel.git-row-actions">
         <Setter Property="Opacity" Value="0" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <Style Selector="Button.git-row-btn:pointerover StackPanel.git-row-actions">
+    <Style Selector="Button.git-row-btn:pointerover StackPanel.git-row-actions, Border.git-row:pointerover StackPanel.git-row-actions">
         <Setter Property="Opacity" Value="1" />
         <Setter Property="IsHitTestVisible" Value="True" />
     </Style>

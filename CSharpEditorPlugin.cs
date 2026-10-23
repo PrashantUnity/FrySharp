@@ -394,6 +394,24 @@ public class CSharpEditorPlugin : IFryPlugin
 
             ctx.RegisterShortcut(new ShortcutDescriptor
             {
+                Id = "csharp.editor.runWithoutDebug",
+                Title = "Run Without Debugging",
+                Category = "Code Studio",
+                Description = "Execute active C# script or external language program directly without attaching the debugger.",
+                KeyGesture = "Ctrl+F5",
+                Scope = Id,
+                Command = new RelayCommand(() =>
+                {
+                    if (activeHost?.CurrentPage is not CSharpCodeStudioViewModel codeVm) return;
+                    if (!codeVm.IsExecuting && !codeVm.IsDebugging)
+                    {
+                        codeVm.RunCodeCommand.Execute(null);
+                    }
+                })
+            }),
+
+            ctx.RegisterShortcut(new ShortcutDescriptor
+            {
                 Id = "csharp.editor.stop",
                 Title = "Stop Script",
                 Category = "Code Studio",

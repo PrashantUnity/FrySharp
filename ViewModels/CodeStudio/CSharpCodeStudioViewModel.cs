@@ -509,6 +509,11 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
     /// </summary>
     private async Task SaveDocumentAsync(bool userAsked)
     {
+        if (Script.IsReadOnly || Script.Id.StartsWith("git-diff:", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         if (userAsked)
         {
             Script.IsEphemeral = false;

@@ -28,7 +28,7 @@ public class CSharpAiContextProvider : IAiContextProvider
     {
         var host = _getHostVm();
         var page = host?.CurrentPage;
-        if (page is not CSharpCodeStudioViewModel && page is not CSharpNotebookStudioViewModel)
+        if (page == null)
         {
             if (host?.CodeStudioViewModel?.Script != null) page = host.CodeStudioViewModel;
             else if (host?.NotebookStudioViewModel?.Notebook != null) page = host.NotebookStudioViewModel;

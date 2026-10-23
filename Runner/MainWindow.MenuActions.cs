@@ -8,6 +8,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Storage;
 using PdfEditorApp.Plugins.CSharpEditor.Views;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.Runner;
@@ -57,10 +58,13 @@ public partial class MainWindow : Window
             }
             else
             {
+                var lang = StudioHostVm.Languages.Registry.FindByExtension(path);
                 var doc = new ScriptDocumentItem
                 {
+                    Id = ScriptStorageIdHelper.SourceFileId(path),
                     Title = Path.GetFileName(path),
                     SourceFilePath = path,
+                    LanguageId = lang?.Id ?? "csharp",
                     Code = File.Exists(path) ? await File.ReadAllTextAsync(path) : string.Empty
                 };
                 StudioHostVm.NavigateToCodeStudio(doc);

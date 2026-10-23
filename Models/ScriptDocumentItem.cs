@@ -37,4 +37,8 @@ public class ScriptDocumentItem
     /// <summary>True when this document is an unsaved scratchpad, starter template, or practice problem that should not auto-save to disk on execution.</summary>
     [JsonIgnore]
     public bool IsEphemeral { get; set; }
+
+    /// <summary>True when this document is read-only (e.g. diff viewers or historical snapshots) and must never overwrite files on disk.</summary>
+    [JsonIgnore]
+    public bool IsReadOnly { get; set; }
 }
