@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.0.8
+## 2.1.0
 
-- Synchronized with FrySharp v2.0.8 release.
+- Synchronized with FrySharp v2.1.0 release.
 - Added comprehensive Git management in CSharpNotebookStudio (diff viewers, branch picker, status parser, source control panel).
 - Added execution safety controls including LoopGuard, read-only document guards, and debounce file system updates.
 - Enhanced explorer row styling, tree indent guides, and dialog overlay controls.

@@ -13,7 +13,7 @@
     <AssemblyName>CSharpEditorPlugin</AssemblyName>
     <PackageId>FryPdf.Plugin.CSharpEditor</PackageId>
     <RootNamespace>PdfEditorApp.Plugins.CSharpEditor</RootNamespace>
-    <Version>2.0.8</Version>
+    <Version>2.1.0</Version>
     <!-- FryWorld.Sdk packages the plugin on Release builds; keep the file name the store catalog links to. -->
     <FryPluginPackageName>CSharpEditor</FryPluginPackageName>
     <!-- Script hover docs for Display, Dump, Check... ship next to the DLLs. -->

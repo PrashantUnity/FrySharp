@@ -32,7 +32,7 @@ public class CSharpEditorPlugin : IFryPlugin
 {
     public string Id => "com.fryworld.csharpstudio";
     public string Name => "FrySharp";
-    public Version Version => new(2, 0, 8);
+    public Version Version => new(2, 1, 0);
     public bool AutoOpenOverlay => false;
     public IReadOnlyList<Type> RequiredServices => Array.Empty<Type>();
 
