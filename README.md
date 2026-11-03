@@ -68,47 +68,6 @@ dotnet test CSharpEditorPlugin.slnx
 ---
 
 
-## 🏗 Architecture: Stateful Notebook Execution
-
-```mermaid
-flowchart TD
-    subgraph Notebook UI
-        C1["Cell 1: var m = 10;"]
-        C2["Cell 2: Console.WriteLine(m * 2);"]
-        C3["Cell 3: Display.Image(surface.Snapshot());"]
-    end
-
-    subgraph "NotebookExecutionKernel (Persistent Session)"
-        Init["ScriptOptions\n(System Refs + NuGet Refs + Usings)"]
-        S0["Submission #0: ScriptState\n(Creates 'm' field, Output = 10)"]
-        S1["Submission #1: ScriptState.ContinueWithAsync\n(References S0, Reads 'm', Output = 20)"]
-        S2["Submission #2: ScriptState.ContinueWithAsync\n(References S1, Rich Media Display)"]
-        VarExp["Variable Inspector State\n[m : int = 10]"]
-    end
-
-    subgraph Rich Cell Output
-        Out1["Text Output / Badge"]
-        Out2["Console Output: 20"]
-        Out3["Avalonia Image Control\n(Zoom, Copy, Save PNG)"]
-    end
-
-    C1 -->|"Execute Cell"| S0
-    S0 -->|"State Chaining"| S1
-    C2 -->|"Execute Cell"| S1
-    S1 -->|"State Chaining"| S2
-    C3 -->|"Execute Cell"| S2
-    
-    S0 --> VarExp
-    S1 --> VarExp
-    S2 --> VarExp
-
-    S0 --> Out1
-    S1 --> Out2
-    S2 --> Out3
-```
-
----
-
 ## 🤖 Model Context Protocol (MCP) Integration
 
 FrySharp provides 9 native tools to autonomous AI agents over the Model Context Protocol (MCP) for direct code execution, compiler error diagnosis, editor injection, and live debugging.
