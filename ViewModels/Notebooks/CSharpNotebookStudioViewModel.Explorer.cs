@@ -44,7 +44,7 @@ public partial class CSharpNotebookStudioViewModel
         _isPageActive = true;
         UpdateExtensibilityDocumentResolver();
         RefreshExplorerIfStaleAsync().FireAndForget(_activities, "Listing the workspace");
-        _ = RefreshGitStatusAsync();
+        Git.OnHostActivated();
 
         // Reading the file index starts (or refreshes) its background walk, so Go to File is ready when it is used.
         _ = _storageService.FileIndex;
@@ -124,6 +124,8 @@ public partial class CSharpNotebookStudioViewModel
 
         // A refresh keeps the folders the user had open open.
         var expandedFolders = ExplorerItemViewModel.ExpandedFolderPaths(ExplorerRootItems);
+        // The items still there come back as they were: only the rows of what changed are redrawn.
+        var reuse = new ExplorerItemReuse(ExplorerRootItems);
         ExplorerRootItems.Clear();
         var folderNodes = new Dictionary<string, ExplorerItemViewModel>(StringComparer.OrdinalIgnoreCase);
         // The file names already in each folder (the root under its own key): a name-by-name scan of the siblings for every
@@ -141,7 +143,7 @@ public partial class CSharpNotebookStudioViewModel
             var parentPath = lastSlash >= 0 ? relativePath[..lastSlash] : string.Empty;
             var parent = GetOrCreateFolder(parentPath);
 
-            var node = CreateFolderItem(name, relativePath, isExpanded: expandedFolders.Contains(relativePath), parent: parent);
+            var node = reuse.Folder(relativePath, parent, () => CreateFolderItem(name, relativePath, isExpanded: expandedFolders.Contains(relativePath), parent: parent));
             AddToTree(parent, node);
             folderNodes[relativePath] = node;
             return node;
@@ -176,7 +178,7 @@ public partial class CSharpNotebookStudioViewModel
                 continue;
             }
 
-            var docItem = CreateFileItem(name, s.Id, parent, fullPath);
+            var docItem = reuse.File(fullPath, s.Id, name, parent, () => CreateFileItem(name, s.Id, parent, fullPath));
             if (s.IsSourceFile && _storageService.Languages.Get(s.LanguageId) is { } language)
             {
                 docItem.IsSourceFile = true;

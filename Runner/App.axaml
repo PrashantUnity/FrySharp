@@ -16,7 +16,6 @@
     <Application.Styles>
         <FluentTheme />
         <materialIcons:MaterialIconStyles />
-        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
         <StyleInclude Source="avares://CSharpEditorPlugin/Styles/StudioStyles.axaml" />
     </Application.Styles>
 

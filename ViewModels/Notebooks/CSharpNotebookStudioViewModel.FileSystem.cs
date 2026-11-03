@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer;
+using PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.Notebooks;
 
@@ -29,50 +30,20 @@ public partial class CSharpNotebookStudioViewModel
     [RelayCommand]
     public async Task DeleteExplorerItemAsync(ExplorerItemViewModel item)
     {
-        if (item == null) return;
+        if (item == null || item.IsExternalGroup) return;
 
-        if (item.IsExternalGroup) return;
+        var ids = ExplorerDeletion.DocumentIds(item);
+        var (result, error) = await ExplorerDeletion.DeleteAsync(_storageService, _dialogs, item);
+        if (result == ExplorerDeletionResult.Failed) CompilerStatusText = error ?? string.Empty;
+        if (result != ExplorerDeletionResult.Deleted) return;
 
-        if (item.IsDirectory)
+        // The notebooks that went with it close, by id or path (never by title: two notebooks can share one). One with
+        // unsaved edits stays open, so they can still be saved.
+        var itemPath = string.IsNullOrEmpty(item.FullPath) ? null : item.FullPath;
+        foreach (var tab in Tabs.Where(t => ids.Contains(t.Notebook.Id, StringComparer.OrdinalIgnoreCase) ||
+                                            (itemPath != null && string.Equals(t.FilePath, itemPath, StringComparison.OrdinalIgnoreCase))).ToList())
         {
-            var descendantIds = CollectDescendantDocumentIds(item);
-            if (descendantIds.Count > 0)
-            {
-                foreach (var tab in Tabs.Where(t => descendantIds.Contains(t.Notebook.Id)).ToList())
-                {
-                    CloseTab(tab);
-                }
-            }
-
-            try
-            {
-                await _storageService.DeleteFolderAsync(item.FullPath);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to delete folder '{item.FullPath}': {ex.Message}");
-            }
-        }
-        else if (!string.IsNullOrEmpty(item.DocumentId))
-        {
-            try
-            {
-                await _storageService.DeleteItemAsync(item.DocumentId);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to delete '{item.DocumentId}': {ex.Message}");
-            }
-
-            var openTab = Tabs.FirstOrDefault(t =>
-                string.Equals(t.Notebook.Id, item.DocumentId, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(t.Title, item.Name, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(item.FullPath) && string.Equals(t.FilePath, item.FullPath, StringComparison.OrdinalIgnoreCase)));
-
-            if (openTab != null)
-            {
-                CloseTab(openTab);
-            }
+            if (!tab.IsModified) CloseTab(tab);
         }
 
         if (item.Parent != null)
@@ -202,35 +173,7 @@ public partial class CSharpNotebookStudioViewModel
         if (item == null) return;
         var rel = !string.IsNullOrEmpty(item.FullPath) ? item.FullPath : item.Name;
         var fullPath = Path.IsPathRooted(rel) ? rel : Path.GetFullPath(Path.Combine(_storageService.ActiveWorkspaceRootPath, rel.Replace('/', Path.DirectorySeparatorChar)));
-
-        if (string.IsNullOrWhiteSpace(fullPath) || (!File.Exists(fullPath) && !Directory.Exists(fullPath))) return;
-
-        try
-        {
-            if (OperatingSystem.IsMacOS())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("open", $"\"{target}\"");
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = item.IsDirectory ? $"\"{fullPath}\"" : $"/select,\"{fullPath}\"",
-                    UseShellExecute = true
-                });
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("xdg-open", $"\"{target}\"");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[CSharpEditorPlugin] Reveal in file manager failed: {ex.Message}");
-        }
+        Common.FileManagerReveal.Reveal(fullPath);
     }
 
     [RelayCommand]
@@ -432,7 +375,10 @@ public partial class CSharpNotebookStudioViewModel
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to rename folder '{item.FullPath}': {ex.Message}");
+                // The disk still has the old name: so does the row, and the user hears why.
+                var oldName = Path.GetFileName(item.FullPath.TrimEnd('/', '\\'));
+                CompilerStatusText = $"⚠️ Couldn't rename {oldName}: {ex.Message}";
+                if (!string.IsNullOrEmpty(oldName)) item.Name = oldName;
             }
             return;
         }

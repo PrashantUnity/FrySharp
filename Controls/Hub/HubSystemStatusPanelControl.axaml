@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:iconconv="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PdfEditorApp.Plugins.CSharpEditor.ViewModels"
@@ -165,7 +166,11 @@
                                                     <TextBlock Text="{Binding RoslynEngineTitle}" lt:Tokens.FontSize="DsFontSize350" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource DsTextWhiteBrush}" />
                                                     <TextBlock Text="{Binding RoslynEngineStatus}" lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" />
                                                 </StackPanel>
-                                                <Border Grid.Column="2" Width="8" Height="8" lt:Tokens.CornerRadius="DsRadiusSM" Background="{DynamicResource DsGreenBrush}" Classes="status-pulse-dot" VerticalAlignment="Center" />
+                                                <Panel Grid.Column="2" VerticalAlignment="Center">
+                                                    <Border Width="8" Height="8" lt:Tokens.CornerRadius="DsRadiusSM" Background="{DynamicResource DsGreenBrush}" Classes="status-pulse-dot" IsVisible="{Binding IsRoslynEngineReady}" />
+                                                    <Border Width="8" Height="8" lt:Tokens.CornerRadius="DsRadiusSM" Background="{DynamicResource DsWarningBrush}" IsVisible="{Binding IsRoslynEngineStarting}" ToolTip.Tip="Starting" />
+                                                    <Border Width="8" Height="8" lt:Tokens.CornerRadius="DsRadiusSM" Background="{DynamicResource DsErrorBrush}" IsVisible="{Binding IsRoslynEngineFailed}" ToolTip.Tip="Failed to start" />
+                                                </Panel>
                                             </Grid>
 
                                             <!-- Storage Engine Status -->
@@ -194,7 +199,7 @@
                                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto" ToolTip.Tip="{Binding Detail}" Background="Transparent">
                                                             <Border Grid.Column="0" Width="32" Height="32" lt:Tokens.CornerRadius="DsRadiusMD"
                                                                     Background="{DynamicResource DsPrimarySubtleBrush}">
-                                                                <materialIcons:MaterialIcon Kind="{Binding IconKind}" Width="16" Height="16" Foreground="{Binding AccentHex}"
+                                                                <materialIcons:MaterialIcon Kind="{Binding IconKind, Converter={x:Static iconconv:IconKindConverter.Instance}}" Width="16" Height="16" Foreground="{Binding AccentHex}"
                                                                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                             </Border>
                                                             <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">

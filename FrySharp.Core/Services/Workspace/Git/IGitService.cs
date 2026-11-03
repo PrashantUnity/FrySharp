@@ -17,7 +17,8 @@ public interface IGitService
     Task<GitCommandResult> UnstageAllAsync(string workspaceRoot, CancellationToken ct = default);
 
     Task<GitCommandResult> DiscardFileChangesAsync(string workspaceRoot, string relativePath, bool isUntracked = false, CancellationToken ct = default);
-    Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, CancellationToken ct = default);
+    /// <param name="includeUntracked">Also delete the files git doesn't track (<c>git clean</c>): for good, so only after asking about them.</param>
+    Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, bool includeUntracked = true, CancellationToken ct = default);
 
     Task<GitCommandResult> CommitAsync(string workspaceRoot, string message, bool stageAllIfNoneStaged = false, CancellationToken ct = default);
 

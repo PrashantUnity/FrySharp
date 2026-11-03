@@ -20,7 +20,13 @@ public static class InteractiveCancellationContext
     {
         var previous = _current.Value;
         _current.Value = token;
-        return new Scope(() => _current.Value = previous);
+        // Loops the studio instrumented look at this token once it is cancelled (see LoopGuard).
+        var tracked = Execution.LoopGuard.Track(token);
+        return new Scope(() =>
+        {
+            tracked.Dispose();
+            _current.Value = previous;
+        });
     }
 
     private sealed class Scope : IDisposable

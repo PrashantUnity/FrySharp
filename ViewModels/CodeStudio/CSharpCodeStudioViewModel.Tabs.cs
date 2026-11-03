@@ -1,6 +1,7 @@
 using Avalonia.Input.Platform;
 using CommunityToolkit.Mvvm.Input;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Common;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Storage;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
@@ -51,8 +52,16 @@ public partial class CSharpCodeStudioViewModel
     private void SafeTabAction(Func<Task> action, string actionName) =>
         Services.Activities.ActivityExtensions.FireAndForget(action(), _activities, actionName);
 
+    // A tab switch puts the tab's lists back: a list that can take them at once raises one change, not one per item (a
+    // tab with hundreds of problems or outputs redrew its panel hundreds of times).
     private static void CopyItems<T>(ICollection<T> target, IEnumerable<T> source)
     {
+        if (target is RangeObservableCollection<T> range)
+        {
+            range.ReplaceAll(source as IReadOnlyList<T> ?? source.ToList());
+            return;
+        }
+
         target.Clear();
         foreach (var item in source) target.Add(item);
     }
@@ -164,6 +173,8 @@ public partial class CSharpCodeStudioViewModel
             TriggerDiagnosticsCheck();
         }
 
+        UpdateChangedOnDiskNotice();
+
         // The tree only needs rebuilding if the workspace changed (a script created in the Hub, say), not on every switch.
         await RefreshExplorerIfStaleAsync();
 
@@ -171,8 +182,51 @@ public partial class CSharpCodeStudioViewModel
             new Services.Extensibility.Editor.StudioDocumentContextAdapter(this));
     }
 
+    // ── Unsaved changes ────────────────────────────────────────────────────────────────────────────────────────────
+
+    private static bool IsUnsaved(Common.StudioTabItemViewModel tab) =>
+        tab.IsDirty && !tab.Document.IsReadOnly && !tab.Id.StartsWith("git-diff:", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The titles of the open documents with edits that aren't saved (closing the studio asks about them).</summary>
+    public IReadOnlyList<string> UnsavedDocumentTitles => OpenTabs.Where(IsUnsaved).Select(t => t.Title).ToList();
+
+    /// <summary>Saves every open document that has unsaved edits. False when one of them couldn't be saved.</summary>
+    public async Task<bool> SaveAllAsync()
+    {
+        var allSaved = true;
+        foreach (var tab in OpenTabs.Where(IsUnsaved).ToList())
+        {
+            allSaved &= await SaveTabAsync(tab);
+        }
+
+        return allSaved;
+    }
+
+    /// <summary>
+    /// Before tabs close: if any has unsaved edits, asks whether to save them, drop them, or keep the tabs open. False when
+    /// the tabs must stay (the user cancelled, or a save failed). With nobody to ask (tests, tools) the tabs close as before.
+    /// </summary>
+    private async Task<bool> ConfirmCloseAsync(IEnumerable<Common.StudioTabItemViewModel> closing)
+    {
+        var unsaved = closing.Where(IsUnsaved).ToList();
+        if (unsaved.Count == 0) return true;
+
+        var answer = await StudioQuestions.AskToSaveAsync(_dialogs, unsaved.Select(t => t.Title).ToList());
+        if (answer is null or StudioQuestions.DontSave) return true;
+        if (answer != StudioQuestions.Save) return false;
+
+        foreach (var tab in unsaved)
+        {
+            if (!await SaveTabAsync(tab)) return false;
+        }
+
+        return true;
+    }
+
     public async Task CloseTabAsync(Common.StudioTabItemViewModel tab)
     {
+        if (!await ConfirmCloseAsync([tab])) return;
+
         if (OpenTabs.Count <= 1)
         {
             var freshScript = new ScriptDocumentItem
@@ -204,6 +258,7 @@ public partial class CSharpCodeStudioViewModel
     {
         if (OpenTabs.Count <= 1) return;
         var toRemove = OpenTabs.Where(t => t != tab).ToList();
+        if (!await ConfirmCloseAsync(toRemove)) return;
         foreach (var t in toRemove)
         {
             StopTabRun(t);
@@ -222,6 +277,7 @@ public partial class CSharpCodeStudioViewModel
         if (index < 0 || index >= OpenTabs.Count - 1) return;
 
         var toRemove = OpenTabs.Skip(index + 1).ToList();
+        if (!await ConfirmCloseAsync(toRemove)) return;
         foreach (var t in toRemove)
         {
             StopTabRun(t);
@@ -236,6 +292,8 @@ public partial class CSharpCodeStudioViewModel
 
     public async Task CloseAllTabsAsync()
     {
+        if (!await ConfirmCloseAsync(OpenTabs.ToList())) return;
+
         var freshScript = new ScriptDocumentItem
         {
             Title = "Untitled Script",

@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:common="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:models="using:PdfEditorApp.Plugins.CSharpEditor.Models"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Editor.DebugHoverDataTipControl">
@@ -113,7 +114,7 @@
                                             </ToggleButton>
 
                                             <!-- Node Icon -->
-                                            <materialIcons:MaterialIcon Grid.Column="1" Kind="{Binding IconKind}" Width="13" Height="13" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+                                            <materialIcons:MaterialIcon Grid.Column="1" Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="13" Height="13" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,4,0" />
 
                                             <!-- Node Name -->
                                             <TextBlock Grid.Column="2" Text="{Binding Name}" lt:Tokens.FontSize="DsFontSize200" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource CodeMemberBrush}" lt:Tokens.FontFamily="DsCodeFontFamily" VerticalAlignment="Center" />
@@ -159,7 +160,7 @@
                                                                               Padding="0" Margin="0,0,2,0">
                                                                     <materialIcons:MaterialIcon Kind="{Binding IsExpanded, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=True, FallbackValue=ChevronRight}" Width="11" Height="11" Foreground="{DynamicResource M3OnSurfaceVariantBrush}" />
                                                                 </ToggleButton>
-                                                                <materialIcons:MaterialIcon Grid.Column="1" Kind="{Binding IconKind}" Width="12" Height="12" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,3,0" />
+                                                                <materialIcons:MaterialIcon Grid.Column="1" Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="12" Height="12" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,3,0" />
                                                                  <TextBlock Grid.Column="2" Text="{Binding Name}" lt:Tokens.FontSize="DsFontSize150" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource CodeMemberBrush}" lt:Tokens.FontFamily="DsCodeFontFamily" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="3" Text="=" lt:Tokens.FontSize="DsFontSize100" Foreground="{DynamicResource M3OnSurfaceVariantBrush}" Margin="3,0" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="4" Text="{Binding TypeName, StringFormat='\{{0}\}'}" lt:Tokens.FontSize="DsFontSize075" Foreground="{DynamicResource CodeTypeBrush}" lt:Tokens.FontFamily="DsCodeFontFamily" Margin="0,0,3,0" VerticalAlignment="Center" />
@@ -189,7 +190,7 @@
                                                                     <DataTemplate x:DataType="models:DebugVariableItem">
                                                                         <Border Classes="hover-node-row" Margin="0,1">
                                                                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*">
-                                                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind}" Width="11" Height="11" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,3,0" />
+                                                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="11" Height="11" Foreground="{DynamicResource M3PrimaryBrush}" VerticalAlignment="Center" Margin="0,0,3,0" />
                                                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource CodeMemberBrush}" lt:Tokens.FontFamily="DsCodeFontFamily" VerticalAlignment="Center" />
                                                                                 <TextBlock Grid.Column="2" Text="=" lt:Tokens.FontSize="DsFontSize075" Foreground="{DynamicResource M3OnSurfaceVariantBrush}" Margin="3,0" VerticalAlignment="Center" />
                                                                                 <TextBlock Grid.Column="3" Text="{Binding TypeName, StringFormat='\{{0}\}'}" lt:Tokens.FontSize="DsFontSize075" Foreground="{DynamicResource CodeTypeBrush}" lt:Tokens.FontFamily="DsCodeFontFamily" Margin="0,0,3,0" VerticalAlignment="Center" />

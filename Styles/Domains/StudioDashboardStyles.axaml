@@ -445,22 +445,9 @@
         <Setter Property="lt:Tokens.FontWeight" Value="DsWeightEmphasis" />
     </Style>
 
-    <!-- Pulsing Status Dot Animation -->
-    <Style Selector="Border.status-pulse-dot">
-        <Style.Animations>
-            <Animation Duration="0:0:2.0" IterationCount="Infinite">
-                <KeyFrame Cue="0%">
-                    <Setter Property="Opacity" Value="1.0" />
-                </KeyFrame>
-                <KeyFrame Cue="50%">
-                    <Setter Property="Opacity" Value="0.35" />
-                </KeyFrame>
-                <KeyFrame Cue="100%">
-                    <Setter Property="Opacity" Value="1.0" />
-                </KeyFrame>
-            </Animation>
-        </Style.Animations>
-    </Style>
+    <!-- Status dots (Border.status-pulse-dot) stay still on purpose. They used to pulse forever, and an endless animation
+         redraws the page on every frame for as long as it is shown: the idle Hub cost about 60 ms of drawing per frame
+         instead of nothing. See the performance mandate on animations. -->
 
 
     <!-- Hub Welcome & Workspaces Responsive Styles -->

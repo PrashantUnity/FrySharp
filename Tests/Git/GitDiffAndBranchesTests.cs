@@ -168,21 +168,21 @@ public class GitDiffAndBranchesTests : IDisposable
         var fakeGit = new TestDiffGitService();
         var studio = CreateStudio(fakeGit);
 
-        await studio.RefreshBranchesAsync();
+        await studio.Git.RefreshBranchesAsync();
 
-        Assert.Equal(3, studio.AvailableBranches.Count);
-        Assert.Equal("main", studio.CurrentGitBranch);
+        Assert.Equal(3, studio.Git.AvailableBranches.Count);
+        Assert.Equal("main", studio.Git.CurrentGitBranch);
 
         // Filter branches
-        studio.BranchFilterText = "feature";
-        Assert.Single(studio.FilteredBranches);
-        Assert.Equal("feature/git-ui", studio.FilteredBranches.First().Name);
+        studio.Git.BranchFilterText = "feature";
+        Assert.Single(studio.Git.FilteredBranches);
+        Assert.Equal("feature/git-ui", studio.Git.FilteredBranches.First().Name);
 
         // Checkout branch
-        var target = studio.AvailableBranches.First(b => b.Name == "feature/git-ui");
-        await studio.CheckoutBranchAsync(target);
+        var target = studio.Git.AvailableBranches.First(b => b.Name == "feature/git-ui");
+        await studio.Git.CheckoutBranchAsync(target);
 
-        Assert.Equal("feature/git-ui", studio.CurrentGitBranch);
+        Assert.Equal("feature/git-ui", studio.Git.CurrentGitBranch);
         Assert.Equal("feature/git-ui", fakeGit.CheckedOutBranch);
     }
 
@@ -192,10 +192,10 @@ public class GitDiffAndBranchesTests : IDisposable
         var fakeGit = new TestDiffGitService();
         var studio = CreateStudio(fakeGit);
 
-        studio.NewBranchName = "bugfix/issue-42";
-        await studio.CreateAndCheckoutBranchAsync();
+        studio.Git.NewBranchName = "bugfix/issue-42";
+        await studio.Git.CreateAndCheckoutBranchAsync();
 
-        Assert.Equal("bugfix/issue-42", studio.CurrentGitBranch);
+        Assert.Equal("bugfix/issue-42", studio.Git.CurrentGitBranch);
         Assert.Equal("bugfix/issue-42", fakeGit.CreatedBranch);
     }
 
@@ -205,12 +205,12 @@ public class GitDiffAndBranchesTests : IDisposable
         var fakeGit = new TestDiffGitService();
         var studio = CreateStudio(fakeGit);
 
-        studio.WorkingChanges.Add(new GitFileChangeItemViewModel(
+        studio.Git.WorkingChanges.Add(new GitFileChangeItemViewModel(
             new GitFileChange("Services/Workspace/Git/GitService.cs", GitFileStatusKind.Modified, false)));
 
-        studio.GenerateSmartCommitMessage();
+        studio.Git.GenerateSmartCommitMessage();
 
-        Assert.Equal("feat(git): update GitService.cs", studio.GitCommitMessage);
+        Assert.Equal("feat(git): update GitService.cs", studio.Git.GitCommitMessage);
     }
 
     [Fact]
@@ -246,14 +246,14 @@ public class GitDiffAndBranchesTests : IDisposable
         var fakeGit = new TestDiffGitService();
         var studio = CreateStudio(fakeGit);
 
-        studio.NewBranchName = string.Empty;
-        studio.BranchFilterText = "feature/new-from-filter";
+        studio.Git.NewBranchName = string.Empty;
+        studio.Git.BranchFilterText = "feature/new-from-filter";
 
-        await studio.CreateAndCheckoutBranchCommand.ExecuteAsync(null);
+        await studio.Git.CreateAndCheckoutBranchCommand.ExecuteAsync(null);
 
         Assert.Equal("feature/new-from-filter", fakeGit.CreatedBranch);
-        Assert.Equal(string.Empty, studio.BranchFilterText);
-        Assert.Equal(string.Empty, studio.NewBranchName);
+        Assert.Equal(string.Empty, studio.Git.BranchFilterText);
+        Assert.Equal(string.Empty, studio.Git.NewBranchName);
     }
 
     private CSharpCodeStudioViewModel CreateStudio(IGitService gitService)
@@ -273,7 +273,7 @@ public class GitDiffAndBranchesTests : IDisposable
             backToHomeAction: () => { },
             postToUiThread: action => action());
 
-        studio.GitService = gitService;
+        studio.Git.GitService = gitService;
         return studio;
     }
 
@@ -303,7 +303,7 @@ public class GitDiffAndBranchesTests : IDisposable
         public Task<GitCommandResult> DiscardFileChangesAsync(string workspaceRoot, string relativePath, bool isUntracked = false, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, ""));
 
-        public Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, CancellationToken ct = default) =>
+        public Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, bool includeUntracked = true, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, ""));
 
         public Task<GitCommandResult> CommitAsync(string workspaceRoot, string message, bool stageAllIfNoneStaged = false, CancellationToken ct = default) =>

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using PdfEditorApp.Plugins.CSharpEditor.Controls;
 using PdfEditorApp.Plugins.CSharpEditor.Controls.Common;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels;
@@ -21,6 +22,7 @@ public partial class CSharpStudioHostView : UserControl, IDisposable
     public CSharpStudioHostView()
     {
         InitializeComponent();
+        StudioStyleSheet.IncludeUnlessApplicationHasIt(this);
         AddHandler(KeyDownEvent, OnHostKeyDown, RoutingStrategies.Tunnel);
 
         // The studio's palette is included here, once; the theme engine shows its theme layer on top of it here.
@@ -67,6 +69,19 @@ public partial class CSharpStudioHostView : UserControl, IDisposable
 
     private void OnHostKeyDown(object? sender, KeyEventArgs e)
     {
+        // While a question is open the page below gets no keys: Escape cancels and Enter answers even when the focus is
+        // still in an editor, Tab and Space move between and press the dialog's buttons.
+        if (DataContext is CSharpStudioHostViewModel { Dialogs.IsOpen: true } host)
+        {
+            var insideDialog = e.Source is Avalonia.Visual source && this.FindControl<Control>("DialogOverlay") is { } overlay &&
+                               (ReferenceEquals(source, overlay) || overlay.IsVisualAncestorOf(source));
+            if (e.Key == Key.Escape) host.Dialogs.Dismiss();
+            else if (e.Key == Key.Enter && !(insideDialog && e.Source is Button)) host.Dialogs.AcceptDefault();
+            else if (insideDialog && e.Key is Key.Tab or Key.Space or Key.Enter) return;
+            e.Handled = true;
+            return;
+        }
+
         var isModifier = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         if (isModifier && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && (e.Key == Key.OemComma || e.Key == Key.Oem1))
         {

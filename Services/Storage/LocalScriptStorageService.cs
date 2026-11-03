@@ -49,7 +49,6 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
     /// <param name="structural">An item appeared, disappeared, moved or was renamed (the Explorer tree changes); false for a save (titles and times change, the tree does not).</param>
     private void MarkChanged(bool structural = true)
     {
-        Volatile.Write(ref _lastOwnChangeTick, Environment.TickCount64);
         BumpVersions(structural);
     }
 
@@ -61,16 +60,15 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
 
     // ── Changes made outside the studio ──────────────────────────────────────────────────────────────────────────
     // The studio's own operations bump the versions themselves; files changed behind its back (git, another editor)
-    // are noticed by watching the active workspace folder, once StartWatchingForChanges has been called.
+    // are noticed by watching the active workspace folder, once StartWatchingForChanges has been called. The echoes of
+    // the studio's own writes are told apart by path (LocalScriptStorageService.OwnChanges.cs).
 
     /// <summary>Raised (on a background thread) once a burst of changes made outside the studio has settled.</summary>
     public event Action? ExternalChangeDetected;
 
-    private const long OwnChangeEchoMilliseconds = 30000;
     private readonly object _watcherGate = new();
     private WorkspaceWatcher? _watcher;
     private bool _watchingEnabled;
-    private long _lastOwnChangeTick;
 
     /// <summary>Starts watching the active workspace folder (and follows it when another folder is opened).</summary>
     public void StartWatchingForChanges()
@@ -90,14 +88,6 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         }
     }
 
-    private void OnChangedOnDisk(bool structural)
-    {
-        // The file system reports the studio's own writes too, and the studio has already accounted for those.
-        if (Environment.TickCount64 - Volatile.Read(ref _lastOwnChangeTick) < OwnChangeEchoMilliseconds) return;
-
-        BumpVersions(structural);
-        ExternalChangeDetected?.Invoke();
-    }
 
     private string EffectiveWorkspaceRoot => _activeWorkspaceRootPath ?? _libraryRoot;
     public string ActiveWorkspaceRootPath => EffectiveWorkspaceRoot;
@@ -219,7 +209,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         try
         {
             var json = JsonSerializer.Serialize(new WorkspaceState { ActiveRootPath = _activeWorkspaceRootPath }, _jsonOptions);
-            await File.WriteAllTextAsync(_workspaceStatePath, json);
+            await WriteFileAsync(_workspaceStatePath, json);
         }
         catch (Exception ex)
         {
@@ -475,17 +465,27 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
     /// top folder here, and each folder's contents come from <see cref="ListFolderAsync"/> as the folder is opened: nothing is cut
     /// off, and nothing costs more than the folder being looked at.
     /// </summary>
-    public async Task<WorkspaceListing> LoadExplorerListingAsync()
+    public async Task<WorkspaceListing> LoadExplorerListingAsync(bool reuseCurrent = false)
     {
         await EnsureInitializedAsync();
         var root = EffectiveWorkspaceRoot;
-        return await _explorerListings.RunAsync((root, StructureVersion, ContentVersion), () => ListExplorerAsync(root)).ConfigureAwait(false);
+        var key = (root, StructureVersion, ContentVersion);
+        if (reuseCurrent && Volatile.Read(ref _lastListing) is { } last && last.Key == key) return last.Listing;
+
+        var listing = await _explorerListings.RunAsync(key, () => ListExplorerAsync(root)).ConfigureAwait(false);
+        Volatile.Write(ref _lastListing, new FinishedListing(key, listing));
+        return listing;
     }
 
     // Listings of the same workspace asked for at the same time, at the same versions, share one walk: both studios'
-    // Explorers list it at once in the background, and a visit can come while that runs. A finished listing is not kept,
-    // so the next one (a Refresh, say) reads the disk again.
+    // Explorers list it at once in the background, and a visit can come while that runs. The last finished listing is
+    // kept too, for the other studio's first visit (or a catch-up) while nothing changed; an explicit Refresh never
+    // reuses it and reads the disk again.
     private readonly SingleFlight<(string Root, long Structure, long Content), WorkspaceListing> _explorerListings = new();
+
+    private sealed record FinishedListing((string Root, long Structure, long Content) Key, WorkspaceListing Listing);
+
+    private FinishedListing? _lastListing;
 
     private async Task<WorkspaceListing> ListExplorerAsync(string root)
     {
@@ -608,7 +608,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             var existing = await FindExistingFilePathAsync(script.Id, ".frycs");
             if (existing != null)
             {
-                await File.WriteAllTextAsync(existing, json);
+                await WriteFileAsync(existing, json);
                 MarkChanged(structural: false);
                 return true;
             }
@@ -623,10 +623,35 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         }
     }
 
+    private static bool IsNotebookFile(string path) =>
+        path.EndsWith(".frynb", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase);
+
+    // A notebook known by its file: an id the Explorer listed (a path's source-file id) or a full path. Found without
+    // walking the workspace, and never confused with another notebook of the same name in another folder.
+    private bool TryGetKnownNotebookFile(string id, out string path)
+    {
+        if (_knownFileLocations.TryGetValue(id, out var known) && IsNotebookFile(known) && File.Exists(known))
+        {
+            path = known;
+            return true;
+        }
+
+        if (Path.IsPathRooted(id) && IsNotebookFile(id) && File.Exists(id))
+        {
+            path = Path.GetFullPath(id);
+            return true;
+        }
+
+        path = string.Empty;
+        return false;
+    }
+
     public async Task<NotebookDocumentItem?> LoadNotebookAsync(string id)
     {
         await EnsureInitializedAsync();
-        var file = await FindExistingFilePathAsync(id, ".frynb");
+        var file = TryGetKnownNotebookFile(id, out var known) ? known : await FindExistingFilePathAsync(id, ".frynb");
         if (file == null && (id.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) || id.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase)))
         {
             file = await FindExistingFilePathAsync(id, Path.GetExtension(id));
@@ -642,7 +667,13 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             {
                 if (file.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase))
                 {
-                    nb.Id = Path.GetFileName(file);
+                    // A Jupyter or .csnb file has no id of its own: it is known by its path (the id the Explorer lists it
+                    // under). Its bare file name used to be its id, and saving then wrote to the first file of that name.
+                    nb.Id = RegisterSourceFile(file);
+                }
+                else
+                {
+                    _knownFileLocations[nb.Id] = file;
                 }
                 bool migrated = false;
                 foreach (var cell in nb.Cells)
@@ -674,15 +705,24 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         try
         {
             notebook.LastModified = DateTime.UtcNow;
+
+            // A notebook opened from its file goes back to that file, in that file's format.
+            if (TryGetKnownNotebookFile(notebook.Id, out var own))
+            {
+                await WriteFileAsync(own, NotebookFileFormat.Write(notebook, KindOf(own), _languages));
+                MarkChanged(structural: false);
+                return true;
+            }
+
             var ext = notebook.Id.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? ".ipynb" :
                       notebook.Id.EndsWith(".csnb", StringComparison.OrdinalIgnoreCase) ? ".csnb" : ".frynb";
-            var kind = ext == ".ipynb" ? NotebookFileKind.Ipynb : NotebookFileKind.Frynb;
+            var kind = KindOf(ext);
             var json = NotebookFileFormat.Write(notebook, kind, _languages);
 
             var existing = await FindExistingFilePathAsync(notebook.Id, ext);
             if (existing != null)
             {
-                await File.WriteAllTextAsync(existing, json);
+                await WriteFileAsync(existing, json);
                 MarkChanged(structural: false);
                 return true;
             }
@@ -694,6 +734,46 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         {
             Debug.WriteLine($"[CSharpEditorPlugin] Failed to save notebook '{notebook.Id}': {ex.Message}");
             return false;
+        }
+    }
+
+    private static NotebookFileKind KindOf(string pathOrExtension) =>
+        pathOrExtension.EndsWith(".ipynb", StringComparison.OrdinalIgnoreCase) ? NotebookFileKind.Ipynb : NotebookFileKind.Frynb;
+
+    /// <summary>
+    /// Saves <paramref name="notebook"/> as the file <paramref name="filePath"/> (Save As), in the format its extension names
+    /// (.ipynb as Jupyter, .frynb and .csnb as FrySharp), and makes that file the notebook's from now on.
+    /// </summary>
+    public async Task<string?> SaveNotebookAsAsync(NotebookDocumentItem notebook, string filePath)
+    {
+        try
+        {
+            var target = Path.GetFullPath(filePath);
+            if (!IsNotebookFile(target)) target += ".ipynb";
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            notebook.IsEphemeral = false;
+            notebook.LastModified = DateTime.UtcNow;
+            notebook.Title = Path.GetFileNameWithoutExtension(target);
+            if (target.EndsWith(".frynb", StringComparison.OrdinalIgnoreCase))
+            {
+                // A .frynb carries its id inside: a copy is a document of its own, never a second file with the first one's id.
+                notebook.Id = Guid.NewGuid().ToString("N");
+                _knownFileLocations[notebook.Id] = target;
+            }
+            else
+            {
+                notebook.Id = RegisterSourceFile(target);
+            }
+
+            await WriteFileAsync(target, NotebookFileFormat.Write(notebook, KindOf(target), _languages));
+            MarkChanged();
+            return target;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CSharpEditorPlugin] Failed to save notebook as '{filePath}': {ex.Message}");
+            return null;
         }
     }
 
@@ -725,7 +805,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             var existing = await FindExistingFilePathAsync(serverDoc.Id, ".fryserver");
             if (existing != null)
             {
-                await File.WriteAllTextAsync(existing, json);
+                await WriteFileAsync(existing, json);
                 MarkChanged(structural: false);
                 return true;
             }
@@ -737,6 +817,30 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         {
             Debug.WriteLine($"[CSharpEditorPlugin] Failed to save server doc '{serverDoc.Id}': {ex.Message}");
             return false;
+        }
+    }
+
+    public async Task<string?> SaveServerDocumentAsAsync(FryServerDocumentItem serverDoc, string filePath)
+    {
+        try
+        {
+            var target = Path.GetFullPath(filePath);
+            if (!target.EndsWith(".fryserver", StringComparison.OrdinalIgnoreCase)) target += ".fryserver";
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            // The id lives inside the file: the copy gets its own, so the two files never open each other.
+            serverDoc.Id = Guid.NewGuid().ToString("N");
+            serverDoc.Title = Path.GetFileNameWithoutExtension(target);
+            serverDoc.LastModified = DateTime.UtcNow;
+            _knownFileLocations[serverDoc.Id] = target;
+            await WriteFileAsync(target, JsonSerializer.Serialize(serverDoc, _jsonOptions));
+            MarkChanged();
+            return target;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CSharpEditorPlugin] Failed to save server document as '{filePath}': {ex.Message}");
+            return null;
         }
     }
 
@@ -773,7 +877,13 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
     {
         var root = EffectiveWorkspaceRoot;
         var targetDir = string.IsNullOrEmpty(folderPath) ? root : Path.Combine(root, folderPath);
-        Directory.CreateDirectory(targetDir);
+        if (!Directory.Exists(targetDir))
+        {
+            // Only a folder the studio creates is its own change: remembering an existing one would hide every outside
+            // change below it for a while.
+            RememberOwnChange(targetDir);
+            Directory.CreateDirectory(targetDir);
+        }
 
         var safeName = SanitizeName(title, "Untitled");
         var finalName = safeName;
@@ -785,7 +895,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         }
 
         var file = Path.Combine(targetDir, $"{finalName}{extension}");
-        await File.WriteAllTextAsync(file, json);
+        await WriteFileAsync(file, json);
         _knownFileLocations[id] = file;
         MarkChanged();
     }
@@ -906,12 +1016,14 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         var scriptFile = await FindExistingFilePathAsync(id, ".frycs");
         if (scriptFile != null)
         {
+            RememberOwnChange(scriptFile);
             File.Delete(scriptFile);
         }
 
         var nbFile = await FindExistingFilePathAsync(id, ".frynb");
         if (nbFile != null)
         {
+            RememberOwnChange(nbFile);
             File.Delete(nbFile);
         }
 
@@ -919,6 +1031,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         var serverFile = await FindExistingFilePathAsync(id, ".fryserver");
         if (serverFile != null)
         {
+            RememberOwnChange(serverFile);
             File.Delete(serverFile);
         }
 
@@ -951,6 +1064,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             throw new IOException($"A file named '{name}' already exists here.");
         }
 
+        RememberOwnChange(existing, target);
         File.Move(existing, target);
         _knownFileLocations[id] = target;
 
@@ -960,15 +1074,15 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         {
             case ".frycs" when JsonSerializer.Deserialize<ScriptDocumentItem>(await File.ReadAllTextAsync(target)) is { } script:
                 script.Title = title;
-                await File.WriteAllTextAsync(target, JsonSerializer.Serialize(script, _jsonOptions));
+                await WriteFileAsync(target, JsonSerializer.Serialize(script, _jsonOptions));
                 break;
             case ".frynb" when JsonSerializer.Deserialize<NotebookDocumentItem>(await File.ReadAllTextAsync(target)) is { } notebook:
                 notebook.Title = title;
-                await File.WriteAllTextAsync(target, JsonSerializer.Serialize(notebook, _jsonOptions));
+                await WriteFileAsync(target, JsonSerializer.Serialize(notebook, _jsonOptions));
                 break;
             case ".fryserver" when JsonSerializer.Deserialize<FryServerDocumentItem>(await File.ReadAllTextAsync(target)) is { } server:
                 server.Title = title;
-                await File.WriteAllTextAsync(target, JsonSerializer.Serialize(server, _jsonOptions));
+                await WriteFileAsync(target, JsonSerializer.Serialize(server, _jsonOptions));
                 break;
         }
 
@@ -997,11 +1111,12 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             var id = Guid.NewGuid().ToString("N");
             document["Id"] = id;
             document["Title"] = Path.GetFileNameWithoutExtension(target);
-            await File.WriteAllTextAsync(target, document.ToJsonString(_jsonOptions));
+            await WriteFileAsync(target, document.ToJsonString(_jsonOptions));
             _knownFileLocations[id] = target;
         }
         else
         {
+            RememberOwnChange(target);
             File.Copy(source, target);
         }
 
@@ -1038,6 +1153,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             finalName = $"{safeName} ({suffix})";
         }
 
+        RememberOwnChange(Path.Combine(parentDir, finalName));
         Directory.CreateDirectory(Path.Combine(parentDir, finalName));
         MarkChanged();
 
@@ -1065,6 +1181,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             // Case-only rename: case-insensitive-but-preserving filesystems (default on macOS/Windows)
             // need a two-step move through a temp name, or Directory.Move is a silent no-op.
             var tempDir = Path.Combine(parentDir, $"{safeName}__rename_{Guid.NewGuid():N}");
+            RememberOwnChange(sourceDir, tempDir, destDir);
             Directory.Move(sourceDir, tempDir);
             Directory.Move(tempDir, destDir);
             MarkChanged();
@@ -1076,9 +1193,52 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
             throw new IOException($"A folder named '{safeName}' already exists here.");
         }
 
+        RememberOwnChange(sourceDir, destDir);
         Directory.Move(sourceDir, destDir);
         MarkChanged();
         return Task.FromResult(newRelativePath);
+    }
+
+    /// <summary>Where deleted items go: the machine's Trash in the studio (set by the host), none in tests and tools.</summary>
+    public IRecycleBin RecycleBin { get; set; } = NoRecycleBin.Instance;
+
+    public async Task<bool> MoveItemToTrashAsync(string id)
+    {
+        await EnsureInitializedAsync();
+        var files = new List<string>();
+        if (IsSourceFileId(id))
+        {
+            if (_knownFileLocations.TryGetValue(id, out var source) && File.Exists(source)) files.Add(source);
+        }
+        else
+        {
+            foreach (var extension in new[] { ".frycs", ".frynb", ".fryserver" })
+            {
+                if (await FindExistingFilePathAsync(id, extension) is { } file) files.Add(file);
+            }
+        }
+
+        if (files.Count == 0) return false;
+        foreach (var file in files)
+        {
+            RememberOwnChange(file);
+            if (!await RecycleBin.TryMoveToTrashAsync(file).ConfigureAwait(false)) return false;
+        }
+
+        _knownFileLocations.TryRemove(id, out _);
+        MarkChanged();
+        return true;
+    }
+
+    public async Task<bool> MoveFolderToTrashAsync(string folderPath)
+    {
+        var dir = Path.GetFullPath(Path.Combine(EffectiveWorkspaceRoot, folderPath));
+        if (!Directory.Exists(dir)) return false;
+
+        RememberOwnChange(dir);
+        if (!await RecycleBin.TryMoveToTrashAsync(dir).ConfigureAwait(false)) return false;
+        MarkChanged();
+        return true;
     }
 
     public Task DeleteFolderAsync(string folderPath)
@@ -1086,6 +1246,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
         var dir = Path.Combine(EffectiveWorkspaceRoot, folderPath);
         if (Directory.Exists(dir))
         {
+            RememberOwnChange(dir);
             Directory.Delete(dir, recursive: true);
             MarkChanged();
         }
@@ -1480,7 +1641,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
                 script = JsonSerializer.Deserialize<ScriptDocumentItem>(existingJson) ?? new ScriptDocumentItem();
                 script.Code = code;
                 script.LastModified = DateTime.UtcNow;
-                await File.WriteAllTextAsync(frycsPath, JsonSerializer.Serialize(script, _jsonOptions));
+                await WriteFileAsync(frycsPath, JsonSerializer.Serialize(script, _jsonOptions));
             }
             else
             {
@@ -1495,7 +1656,7 @@ public partial class LocalScriptStorageService : IScriptStorageService, IDisposa
                     Created = File.GetCreationTimeUtc(filePath),
                     LastModified = File.GetLastWriteTimeUtc(filePath)
                 };
-                await File.WriteAllTextAsync(frycsPath, JsonSerializer.Serialize(script, _jsonOptions));
+                await WriteFileAsync(frycsPath, JsonSerializer.Serialize(script, _jsonOptions));
             }
 
             _knownFileLocations[script.Id] = frycsPath;

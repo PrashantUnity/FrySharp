@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:common="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PdfEditorApp.Plugins.CSharpEditor.ViewModels"
@@ -88,7 +89,7 @@
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <materialIcons:MaterialIcon Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{Binding AccentHex}" VerticalAlignment="Center" />
+                                        <materialIcons:MaterialIcon Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="15" Height="15" Foreground="{Binding AccentHex}" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding DisplayName}" lt:Tokens.FontSize="DsFontSize350" lt:Tokens.FontWeight="DsWeightEmphasis" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding RuntimeDescription, StringFormat='({0})'}" lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                     </StackPanel>

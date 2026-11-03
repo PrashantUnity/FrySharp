@@ -51,7 +51,12 @@ public partial class InteractiveVisualizerControl : UserControl
     static InteractiveVisualizerControl() =>
         OptionsProperty.Changed.AddClassHandler<InteractiveVisualizerControl>((c, _) => c.ApplyOptions());
 
-    public InteractiveVisualizerControl() { try { InitializeComponent(); SetupChrome(); WireEvents(); ApplyViewMode(); } catch { } }
+    public InteractiveVisualizerControl()
+    {
+        // Inside the studio its styles are already there; a window of its own gets them when it joins one.
+        PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.IncludeWhereMissing(this);
+        try { InitializeComponent(); SetupChrome(); WireEvents(); ApplyViewMode(); } catch { }
+    }
     public InteractiveVisualizerControl(VisualizerOptions options) : this() { Options = options; ApplyOptions(); }
 
     private void SetupChrome()

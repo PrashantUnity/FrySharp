@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:iconconv="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
@@ -82,7 +83,7 @@
                                     <Border Grid.Column="0" Width="28" Height="28" lt:Tokens.CornerRadius="DsRadiusMD"
                                             Background="{DynamicResource M3SurfaceContainerHighBrush}"
                                             Margin="0,0,10,0" VerticalAlignment="Center">
-                                        <materialIcons:MaterialIcon Kind="{Binding IconKind}"
+                                        <materialIcons:MaterialIcon Kind="{Binding IconKind, Converter={x:Static iconconv:IconKindConverter.Instance}}"
                                                                     Width="16" Height="16"
                                                                     Foreground="{Binding IconColorHex}"
                                                                     HorizontalAlignment="Center"

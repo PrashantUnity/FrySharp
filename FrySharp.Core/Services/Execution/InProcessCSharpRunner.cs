@@ -64,7 +64,9 @@ public sealed class InProcessCSharpRunner(RoslynCompilerService compiler)
 
     private async Task<CSharpRunResult> RunProgramAsync(string code, Action<string> onConsole, TextReader? stdin, CancellationToken ct)
     {
-        var (success, bytes, diagnostics) = await Task.Run(() => compiler.CompileToAssembly(code, ExecutionLanguageMode.Program), ct).ConfigureAwait(false);
+        // Stop ends its loops even when they never look at a cancellation token.
+        var instrumented = LoopGuard.Instrument(code, Microsoft.CodeAnalysis.SourceCodeKind.Regular);
+        var (success, bytes, diagnostics) = await Task.Run(() => compiler.CompileToAssembly(instrumented, ExecutionLanguageMode.Program), ct).ConfigureAwait(false);
         if (!success || bytes == null)
         {
             foreach (var diagnostic in diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error))

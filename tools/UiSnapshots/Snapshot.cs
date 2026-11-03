@@ -21,6 +21,32 @@ internal static class Snapshot
 
     public static string OutputFolder { get; private set; } = string.Empty;
 
+    // The Runner's App.axaml applies the studio's style bundle and palette to the whole application; FryPDF's doesn't. Compiled
+    // XAML inlines the includes, so they are known by what they hold: the bundle's marker resource, the palette's background.
+    private static void RemoveStudioStylesFromApplication()
+    {
+        var app = Application.Current!;
+        for (int i = app.Styles.Count - 1; i >= 0; i--)
+        {
+            var styles = app.Styles[i] is StyleInclude include ? include.Loaded : app.Styles[i];
+            if (styles is IResourceProvider provider && provider.TryGetResource(PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.MarkerKey, null, out _))
+            {
+                app.Styles.RemoveAt(i);
+            }
+        }
+
+        var merged = app.Resources.MergedDictionaries;
+        for (int i = merged.Count - 1; i >= 0; i--)
+        {
+            if (merged[i].TryGetResource("DsBgBrush", ThemeVariant.Dark, out _)) merged.RemoveAt(i);
+        }
+
+        if (PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.ApplicationHasIt)
+        {
+            throw new InvalidOperationException("FRY_PLUGIN_STYLES_ONLY: the studio's styles are still applied to the application.");
+        }
+    }
+
     public static void Start(Options options)
     {
         AppBuilder.Configure<PdfEditorApp.Plugins.CSharpEditor.Runner.App>()
@@ -28,6 +54,10 @@ internal static class Snapshot
             // Draw real pixels with Skia; headless drawing would render nothing worth saving.
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
             .SetupWithoutStarting();
+
+        // FRY_PLUGIN_STYLES_ONLY=1: render as the plugin does inside FryPDF, whose application has none of the studio's
+        // styles or palette; the studio host then includes them for its own tree (StudioStyleSheet).
+        if (Environment.GetEnvironmentVariable("FRY_PLUGIN_STYLES_ONLY") is { Length: > 0 }) RemoveStudioStylesFromApplication();
 
         if (options.Flag("light")) Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
         if (options.Value("palette") is { } palette) ApplyGeneratedTheme(palette, dark: !options.Flag("light"));

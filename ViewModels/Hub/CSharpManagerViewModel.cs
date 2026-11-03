@@ -259,6 +259,18 @@ public partial class CSharpManagerViewModel : ObservableObject, IPageLifecycle
     /// <summary>The C# engine's real state, set by the studio host as it starts (shown in the Hub's status panel).</summary>
     [ObservableProperty]
     private string _roslynEngineStatus = "Starting • Roslyn 4.12 & C# 13";
+
+    // The status dot: green only once the engine is ready (it used to be green while it said "Starting").
+    public bool IsRoslynEngineReady => RoslynEngineStatus.StartsWith("Ready", StringComparison.Ordinal);
+    public bool IsRoslynEngineFailed => RoslynEngineStatus.StartsWith("Failed", StringComparison.Ordinal);
+    public bool IsRoslynEngineStarting => !IsRoslynEngineReady && !IsRoslynEngineFailed;
+
+    partial void OnRoslynEngineStatusChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsRoslynEngineReady));
+        OnPropertyChanged(nameof(IsRoslynEngineFailed));
+        OnPropertyChanged(nameof(IsRoslynEngineStarting));
+    }
     public bool IsRoslynEngineActive => true;
 
     /// <summary>A STUDIO ENVIRONMENT row per language that runs with an installed toolchain (Python): found, or how to install it.</summary>
@@ -893,6 +905,7 @@ public partial class CSharpManagerViewModel : ObservableObject, IPageLifecycle
         OnPropertyChanged(nameof(IsScriptsNavActive));
         OnPropertyChanged(nameof(IsNotebooksNavActive));
         OnPropertyChanged(nameof(IsServersNavActive));
+        OnPropertyChanged(nameof(IsLibraryListVisible));
         ApplyRecentWorkspacesFilter();
         ApplyFilter();
     }

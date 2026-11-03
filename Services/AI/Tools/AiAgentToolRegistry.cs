@@ -56,7 +56,7 @@ public partial class AiAgentToolRegistry
         _documentationService = documentationService ?? new DocumentationService();
         _onFileModified = onFileModified;
         _processLauncher = processLauncher ?? new ProcessLauncher();
-        _gitService = gitService ?? codeStudioViewModel?.GitService;
+        _gitService = gitService ?? codeStudioViewModel?.Git.GitService;
     }
 
     /// <summary>

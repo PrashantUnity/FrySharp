@@ -60,7 +60,9 @@ public partial class ExplorerItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isConfirmingDelete;
 
-    public string DeleteConfirmationText => $"Delete {Name} from disk?";
+    public string DeleteConfirmationText => IsDirectory
+        ? $"Move folder {Name} and its contents to the {Common.ExplorerDeletion.TrashName}?"
+        : $"Move {Name} to the {Common.ExplorerDeletion.TrashName}?";
 
     /// <summary>Git status letter (M, U, D, A) shown in Explorer tree for uncommitted files.</summary>
     [ObservableProperty]
@@ -232,7 +234,7 @@ public partial class ExplorerItemViewModel : ObservableObject
         }
     }
 
-    public static string RevealInFileManagerLabel => OperatingSystem.IsMacOS() ? "Reveal in Finder" : "Reveal in File Explorer";
+    public static string RevealInFileManagerLabel => Common.FileManagerReveal.Label;
 
     public string IconKind
     {
@@ -336,9 +338,11 @@ public partial class ExplorerItemViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(EditName))
         {
             var trimmed = EditName.Trim();
-            if (!IsDirectory && !trimmed.Contains('.'))
+            // A file keeps its extension when the new name has none (main.py → main stays main.py); a file that had none
+            // (LICENSE, Makefile) stays without one.
+            if (!IsDirectory && !trimmed.Contains('.') && !string.IsNullOrEmpty(FileExtension))
             {
-                trimmed += string.IsNullOrEmpty(FileExtension) ? ".frynb" : FileExtension;
+                trimmed += FileExtension;
             }
 
             Name = trimmed;
@@ -363,8 +367,9 @@ public partial class ExplorerItemViewModel : ObservableObject
     [RelayCommand]
     public void RequestDelete()
     {
-        // A .frycs/.frynb document lives in the studio's workspace; a source file may be the user's own project file.
-        if (IsSourceFile && !IsConfirmingDelete)
+        // Every delete is confirmed on the row first (Enter or a second Delete confirms, Escape cancels): one key press must
+        // never take a file, let alone a folder and everything in it.
+        if (!IsConfirmingDelete && !IsPlaceholder)
         {
             OnPropertyChanged(nameof(DeleteConfirmationText));
             IsConfirmingDelete = true;

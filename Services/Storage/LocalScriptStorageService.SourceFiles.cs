@@ -343,7 +343,7 @@ public partial class LocalScriptStorageService
             }
 
             var hasBom = state?.HasByteOrderMark == true;
-            await File.WriteAllTextAsync(path, text, new UTF8Encoding(hasBom));
+            await WriteFileAsync(path, text, new UTF8Encoding(hasBom));
             var written = File.GetLastWriteTimeUtc(path);
             lock (_sourceGate)
             {
@@ -391,7 +391,21 @@ public partial class LocalScriptStorageService
         for (var n = 2; File.Exists(Path.Combine(folder, name + extension)); n++) name = $"{baseName}_{n}";
 
         var path = Path.Combine(folder, name + extension);
-        await File.WriteAllTextAsync(path, initialContent ?? language.NewFileTemplate, new UTF8Encoding(false));
+        await WriteFileAsync(path, initialContent ?? language.NewFileTemplate, new UTF8Encoding(false));
+        MarkChanged();
+        return await LoadSourceFileAsync(RegisterSourceFile(path));
+    }
+
+    /// <summary>
+    /// Save As: writes <paramref name="text"/> to <paramref name="filePath"/> (anywhere, replacing what is there) and returns
+    /// that file as a document, ready to open in place of the one it was saved from. The workspace that is open stays open.
+    /// </summary>
+    public async Task<ScriptDocumentItem?> SaveSourceFileAsAsync(string filePath, string text)
+    {
+        await EnsureInitializedAsync();
+        var path = Path.GetFullPath(filePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await WriteFileAsync(path, text, new UTF8Encoding(false));
         MarkChanged();
         return await LoadSourceFileAsync(RegisterSourceFile(path));
     }
@@ -420,12 +434,14 @@ public partial class LocalScriptStorageService
         {
             // Case-only rename: case-insensitive file systems need a two-step move, or File.Move does nothing.
             var temporary = target + $".rename_{Guid.NewGuid():N}";
+            RememberOwnChange(path, temporary, target);
             File.Move(path, temporary);
             File.Move(temporary, target);
         }
         else
         {
             if (File.Exists(target)) throw new IOException($"A file named '{name}' already exists here.");
+            RememberOwnChange(path, target);
             File.Move(path, target);
         }
 
@@ -447,7 +463,11 @@ public partial class LocalScriptStorageService
 
     private void DeleteSourceFile(string id)
     {
-        if (_knownFileLocations.TryGetValue(id, out var path) && File.Exists(path)) File.Delete(path);
+        if (_knownFileLocations.TryGetValue(id, out var path) && File.Exists(path))
+        {
+            RememberOwnChange(path);
+            File.Delete(path);
+        }
         _knownFileLocations.TryRemove(id, out _);
         lock (_sourceGate) _sourceFiles.Remove(id);
     }

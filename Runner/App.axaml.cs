@@ -18,9 +18,32 @@ public partial class App : Application
         {
             Debug.WriteLine($"[Dispatcher.UnhandledException] {e.Exception}");
             e.Handled = true;
+            ReportToTheUser(e.Exception);
         };
 
         AvaloniaXamlLoader.Load(this);
+    }
+
+    // Kept from ending the app, but never silent: a failed menu action (an open, a Save As) shows as an error toast.
+    private static bool _reporting;
+
+    private static void ReportToTheUser(Exception error)
+    {
+        if (_reporting || PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common.CSharpStudioHostViewModel.ActiveInstance?.Activities is not { } activities) return;
+        _reporting = true;
+        try
+        {
+            using var activity = activities.Start(new PdfEditorApp.Plugins.CSharpEditor.Services.Activities.ActivityOptions("Something went wrong"));
+            activity.Fail(error);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Dispatcher.UnhandledException] Couldn't report it: {ex}");
+        }
+        finally
+        {
+            _reporting = false;
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()

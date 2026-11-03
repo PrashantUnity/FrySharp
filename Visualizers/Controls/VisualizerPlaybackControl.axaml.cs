@@ -42,6 +42,7 @@ public partial class VisualizerPlaybackControl : UserControl
 
     public VisualizerPlaybackControl()
     {
+        PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.IncludeWhereMissing(this);
         try { InitializeComponent(); WireEvents(); }
         catch { /* Headless test runner */ }
     }

@@ -107,7 +107,8 @@ public sealed class LspClient : IAsyncDisposable, IDisposable
                 }
             };
 
-            var initResult = await SendRequestAsync("initialize", initParams, ct);
+            // A big project can take a server a while to load: starting up gets longer than an ordinary request.
+            var initResult = await SendRequestAsync("initialize", initParams, ct, TimeSpan.FromSeconds(60));
             await SendNotificationAsync("initialized", new { });
             _initialized = true;
             return true;
@@ -213,17 +214,24 @@ public sealed class LspClient : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task<JsonElement> SendRequestAsync(string method, object? @params, CancellationToken ct = default)
+    // A server that is busy or wedged must not keep a caller (a hover, a completion list) waiting forever.
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
+
+    private async Task<JsonElement> SendRequestAsync(string method, object? @params, CancellationToken ct = default, TimeSpan? timeout = null)
     {
+        if (_stdin == null) throw new InvalidOperationException("The language server isn't running.");
+
         int id = Interlocked.Increment(ref _nextId);
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingRequests[id] = tcs;
 
-        using var reg = ct.Register(() =>
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout ?? RequestTimeout);
+        using var reg = limit.Token.Register(() =>
         {
             if (_pendingRequests.TryRemove(id, out var removed))
             {
-                removed.TrySetCanceled(ct);
+                removed.TrySetCanceled(limit.Token);
             }
         });
 
@@ -272,8 +280,22 @@ public sealed class LspClient : IAsyncDisposable, IDisposable
 
     private async Task ReadLoopAsync(Stream stdout, CancellationToken ct)
     {
-        var reader = new BinaryReader(stdout, Encoding.UTF8);
+        try
+        {
+            await ReadMessagesAsync(stdout, ct);
+        }
+        finally
+        {
+            // The server is gone (it exited, or its output closed): nobody will ever answer what is still waiting.
+            foreach (var id in _pendingRequests.Keys.ToList())
+            {
+                if (_pendingRequests.TryRemove(id, out var waiting)) waiting.TrySetException(new IOException("The language server stopped."));
+            }
+        }
+    }
 
+    private async Task ReadMessagesAsync(Stream stdout, CancellationToken ct)
+    {
         while (!ct.IsCancellationRequested)
         {
             try

@@ -31,6 +31,7 @@
                                 <materialIcons:MaterialIcon Grid.Column="0" Kind="Magnify" Width="18" Height="18"
                                                             Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                 <TextBox Grid.Column="1"
+                                         x:Name="SearchBox"
                                          Text="{Binding SearchQuery, Mode=TwoWay}"
                                          Background="Transparent"
                                          BorderThickness="0"
@@ -38,7 +39,7 @@
                                          lt:Tokens.FontSize="DsFontSize400"
                                          Foreground="{DynamicResource DsTextWhiteBrush}"
                                          VerticalAlignment="Center" VerticalContentAlignment="Center"
-                                         PlaceholderText="Search notebooks, scripts, or connections (Ctrl+K)" />
+                                         PlaceholderText="Search notebooks, scripts, or connections" />
                                 <Button Grid.Column="2"
                                         Command="{Binding ClearSearchCommand}"
                                         IsVisible="{Binding HasSearchQuery}"
@@ -49,36 +50,26 @@
                                         ToolTip.Tip="Clear search">
                                     <materialIcons:MaterialIcon Kind="CloseCircleOutline" Width="16" Height="16" Foreground="{DynamicResource DsMutedBrush}" />
                                 </Button>
-                                <!-- Ctrl+K Badge -->
+                                <!-- Ctrl+K / ⌘K Badge: the shortcut that focuses this box (the Hub view handles it) -->
                                 <Border Grid.Column="3" Background="{DynamicResource DsBorderBrush}" lt:Tokens.CornerRadius="DsRadiusSM" Padding="5,2" Margin="6,0,0,0" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" Spacing="2">
-                                        <TextBlock Text="Ctrl" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontFamily="DsCodeFontFamily" Foreground="{DynamicResource DsMutedBrush}" />
+                                        <TextBlock x:Name="ShortcutModifier" Text="Ctrl" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontFamily="DsCodeFontFamily" Foreground="{DynamicResource DsMutedBrush}" />
                                         <TextBlock Text="K" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontFamily="DsCodeFontFamily" Foreground="{DynamicResource DsMutedBrush}" />
                                     </StackPanel>
                                 </Border>
                             </Grid>
                         </Border>
 
-                        <!-- Right Actions: Bell, Sync Button & System Status Rail Toggle -->
+                        <!-- Right Actions: Refresh & System Status Rail Toggle -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" lt:Tokens.Spacing="DsSpace10" VerticalAlignment="Center">
-                            <!-- Bell Button -->
-                            <Button Classes="nexus-btn-ghost" Width="36" lt:Tokens.Height="DsControlHeight500" Padding="0" Cursor="Hand" ToolTip.Tip="Notifications">
-                                <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="BellOutline" Width="18" Height="18" Foreground="{DynamicResource DsMutedBrush}" />
-                                    <Border Width="7" Height="7" lt:Tokens.CornerRadius="DsRadiusXS" Background="{DynamicResource DsPrimaryBrush}"
-                                            BorderBrush="{DynamicResource DsBgBrush}" lt:Tokens.BorderThickness="DsBorderThin"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-1,-1,0" />
-                                </Panel>
-                            </Button>
-
-                            <!-- Sync Button -->
+                            <!-- Refresh: reads the workspace from disk again (nothing is uploaded anywhere) -->
                             <Button Command="{Binding RefreshWorkspaceCommand}"
                                     Classes="nexus-btn-surface"
                                     lt:Tokens.Height="DsControlHeight500" Padding="14,0"
                                     ToolTip.Tip="Reload workspace items from disk">
                                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="CloudUploadOutline" Width="17" Height="17" VerticalAlignment="Center" />
-                                    <TextBlock Text="Sync" VerticalAlignment="Center" />
+                                    <materialIcons:MaterialIcon Kind="Refresh" Width="17" Height="17" VerticalAlignment="Center" />
+                                    <TextBlock Text="Refresh" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
 

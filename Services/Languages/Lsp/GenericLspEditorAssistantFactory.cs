@@ -69,7 +69,11 @@ public sealed class GenericLspEditorAssistantFactory : IEditorAssistantFactory, 
         });
 
         // Debounced text change synchronization
-        var changeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        // Changes go out one at a time and never out of order: a version older than one already sent is dropped, so the
+        // server never ends up with stale text.
+        var changeGate = new SemaphoreSlim(1, 1);
+        var lastSentVersion = 0;
+        var changeTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(250) };
         changeTimer.Tick += (s, e) =>
         {
             changeTimer.Stop();
@@ -77,13 +81,20 @@ public sealed class GenericLspEditorAssistantFactory : IEditorAssistantFactory, 
             var ver = Interlocked.Increment(ref docVersion);
             _ = Task.Run(async () =>
             {
+                await changeGate.WaitAsync();
                 try
                 {
+                    if (ver <= lastSentVersion) return;
+                    lastSentVersion = ver;
                     await client.DidChangeAsync(docPath, ver, text);
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[GenericLsp] DidChangeAsync failed: {ex.Message}");
+                }
+                finally
+                {
+                    changeGate.Release();
                 }
             });
         };
@@ -111,22 +122,22 @@ public sealed class GenericLspEditorAssistantFactory : IEditorAssistantFactory, 
             (text, offset) =>
             {
                 if (offset < 0 || offset >= text.Length) return null;
-                int line = 0, col = 0, currentOffset = 0;
-                var lines = text.Split('\n');
-                for (int i = 0; i < lines.Length; i++)
+
+                // Line and column of the offset, counted without splitting a copy of the whole document.
+                int line = 0, lineStart = 0;
+                for (int i = 0; i < offset; i++)
                 {
-                    int lineLen = lines[i].Length + 1; // +1 for \n
-                    if (currentOffset + lineLen > offset)
-                    {
-                        line = i;
-                        col = offset - currentOffset;
-                        break;
-                    }
-                    currentOffset += lineLen;
+                    if (text[i] != '\n') continue;
+                    line++;
+                    lineStart = i + 1;
                 }
+
                 try
                 {
-                    return client.GetHoverAsync(docPath, line, col, offset).GetAwaiter().GetResult();
+                    // This runs on a pool thread (LanguageQuickInfoController): bounded, so a slow or dead server can't
+                    // keep one blocked for longer than a hover is worth.
+                    using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    return client.GetHoverAsync(docPath, line, offset - lineStart, offset, limit.Token).GetAwaiter().GetResult();
                 }
                 catch
                 {

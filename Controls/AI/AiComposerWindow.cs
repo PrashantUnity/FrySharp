@@ -65,11 +65,8 @@ public class AiComposerWindow : Window
             VerticalAlignment = VerticalAlignment.Stretch
         };
 
-        // A window of its own is outside the studio host, which is where the studio's styles are included (once).
-        Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://CSharpEditorPlugin/"))
-        {
-            Source = new Uri("avares://CSharpEditorPlugin/Styles/StudioStyles.axaml")
-        });
+        // A window of its own is outside the studio host: it needs the studio's styles unless the application has them.
+        PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.IncludeUnlessApplicationHasIt(this);
         Content = composerControl;
         // The layout's interface font and body weight, inherited by everything in the window (as in the studio host).
         PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout.Tokens.SetFontFamily(this, "DsUiFontFamily");

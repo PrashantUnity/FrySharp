@@ -22,10 +22,6 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <UserControl.Styles>
-        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
-    </UserControl.Styles>
-
     <Grid RowDefinitions="*,22">
         <!-- ============================================================ -->
         <!-- ROW 0: MAIN WORKSPACE (Zone 1 - 4)                          -->
@@ -341,7 +337,7 @@
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Height="28" Padding="8,0"
                                     BorderBrush="{DynamicResource DsBorderBrush}" lt:Tokens.BorderThickness="DsBorderTop">
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="{Binding ServerInfoChevron}" Width="14" Height="14" Foreground="{DynamicResource DsMutedBrush}" />
+                                    <materialIcons:MaterialIcon Kind="{Binding ServerInfoChevron, Converter={x:Static common:IconKindConverter.Instance}}" Width="14" Height="14" Foreground="{DynamicResource DsMutedBrush}" />
                                     <TextBlock Text="SERVER CONFIGURATION" lt:Tokens.FontSize="DsFontSize150" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
@@ -608,7 +604,7 @@
                                 Padding="6,1"
                                 VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                <materialIcons:MaterialIcon Kind="{Binding ActiveCellTypeIcon}" Width="11" Height="11" common:ThemeBrush.Foreground="{Binding ActiveCellTypeColorKey}" VerticalAlignment="Center" />
+                                <materialIcons:MaterialIcon Kind="{Binding ActiveCellTypeIcon, Converter={x:Static common:IconKindConverter.Instance}}" Width="11" Height="11" common:ThemeBrush.Foreground="{Binding ActiveCellTypeColorKey}" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding ActiveCellBadgeText}"
                                            lt:Tokens.FontSize="DsFontSize200"
                                            Foreground="{DynamicResource DsTextWhiteBrush}"

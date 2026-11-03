@@ -55,7 +55,7 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
             backToHomeAction: () => { },
             postToUiThread: action => action());
 
-        studio.GitService = gitService;
+        studio.Git.GitService = gitService;
         return studio;
     }
 
@@ -118,24 +118,24 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
 
         var studio = CreateStudio(fakeGit);
 
-        await studio.RefreshGitStatusAsync();
+        await studio.Git.RefreshGitStatusAsync();
 
-        Assert.True(studio.IsGitRepository);
-        Assert.Equal("feature/awesome", studio.CurrentGitBranch);
-        Assert.Equal(1, studio.GitAheadCount);
-        Assert.Equal(0, studio.GitBehindCount);
-        Assert.Equal("1↑", studio.SyncStatusText);
-        Assert.Equal("Sync Changes 1↑", studio.SyncButtonText);
-        Assert.True(studio.IsSyncButtonVisible);
+        Assert.True(studio.Git.IsGitRepository);
+        Assert.Equal("feature/awesome", studio.Git.CurrentGitBranch);
+        Assert.Equal(1, studio.Git.GitAheadCount);
+        Assert.Equal(0, studio.Git.GitBehindCount);
+        Assert.Equal("1↑", studio.Git.SyncStatusText);
+        Assert.Equal("Sync Changes 1↑", studio.Git.SyncButtonText);
+        Assert.True(studio.Git.IsSyncButtonVisible);
 
-        Assert.Single(studio.StagedChanges);
-        Assert.Equal("Added.cs", studio.StagedChanges[0].FileName);
-        Assert.Equal("A", studio.StagedChanges[0].StatusLetter);
-        Assert.True(studio.HasStagedChanges);
+        Assert.Single(studio.Git.StagedChanges);
+        Assert.Equal("Added.cs", studio.Git.StagedChanges[0].FileName);
+        Assert.Equal("A", studio.Git.StagedChanges[0].StatusLetter);
+        Assert.True(studio.Git.HasStagedChanges);
 
-        Assert.Equal(2, studio.WorkingChanges.Count);
-        Assert.True(studio.HasWorkingChanges);
-        Assert.Equal(3, studio.UncommittedChangesCount);
+        Assert.Equal(2, studio.Git.WorkingChanges.Count);
+        Assert.True(studio.Git.HasWorkingChanges);
+        Assert.Equal(3, studio.Git.UncommittedChangesCount);
     }
 
     [Fact]
@@ -155,13 +155,13 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
         };
 
         var studio = CreateStudio(fakeGit);
-        await studio.RefreshGitStatusAsync();
+        await studio.Git.RefreshGitStatusAsync();
 
-        studio.GitCommitMessage = "Initial commit message";
-        await studio.CommitAsync();
+        studio.Git.GitCommitMessage = "Initial commit message";
+        await studio.Git.CommitAsync();
 
         Assert.Equal("Initial commit message", fakeGit.LastCommitMessage);
-        Assert.Empty(studio.GitCommitMessage);
+        Assert.Empty(studio.Git.GitCommitMessage);
     }
 
     [Fact]
@@ -181,14 +181,14 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
         };
 
         var studio = CreateStudio(fakeGit);
-        await studio.RefreshGitStatusAsync();
+        await studio.Git.RefreshGitStatusAsync();
 
-        var changeItem = studio.WorkingChanges[0];
+        var changeItem = studio.Git.WorkingChanges[0];
 
-        await studio.StageFileCommand.ExecuteAsync(changeItem);
+        await studio.Git.StageFileCommand.ExecuteAsync(changeItem);
         Assert.Equal("src/File.cs", fakeGit.LastStagedPath);
 
-        await studio.UnstageFileCommand.ExecuteAsync(changeItem);
+        await studio.Git.UnstageFileCommand.ExecuteAsync(changeItem);
         Assert.Equal("src/File.cs", fakeGit.LastUnstagedPath);
     }
 
@@ -201,13 +201,13 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
         };
 
         var studio = CreateStudio(fakeGit);
-        await studio.RefreshGitStatusAsync();
-        Assert.False(studio.IsGitRepository);
+        await studio.Git.RefreshGitStatusAsync();
+        Assert.False(studio.Git.IsGitRepository);
 
-        await studio.InitGitRepositoryAsync();
+        await studio.Git.InitGitRepositoryAsync();
 
         Assert.True(fakeGit.InitCalled);
-        Assert.True(studio.IsGitRepository);
+        Assert.True(studio.Git.IsGitRepository);
     }
 
     private sealed class FakeGitService : IGitService
@@ -245,7 +245,7 @@ public class CSharpCodeStudioGitManagementTests : IDisposable
         public Task<GitCommandResult> DiscardFileChangesAsync(string workspaceRoot, string relativePath, bool isUntracked = false, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, ""));
 
-        public Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, CancellationToken ct = default) =>
+        public Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, bool includeUntracked = true, CancellationToken ct = default) =>
             Task.FromResult(new GitCommandResult(true, ""));
 
         public Task<GitCommandResult> CommitAsync(string workspaceRoot, string message, bool stageAllIfNoneStaged = false, CancellationToken ct = default)

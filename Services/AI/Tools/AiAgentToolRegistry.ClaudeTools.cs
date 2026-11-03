@@ -292,7 +292,7 @@ public partial class AiAgentToolRegistry
     public async Task<string> GitStatus()
     {
         var root = _storageService?.ActiveWorkspaceRootPath ?? Directory.GetCurrentDirectory();
-        var git = _gitService ?? _codeStudioViewModel?.GitService ?? new GitService();
+        var git = _gitService ?? _codeStudioViewModel?.Git.GitService ?? new GitService();
 
         try
         {
@@ -338,7 +338,7 @@ public partial class AiAgentToolRegistry
         [Description("Set to true to inspect staged changes (--cached), false for working tree.")] bool staged = false)
     {
         var root = _storageService?.ActiveWorkspaceRootPath ?? Directory.GetCurrentDirectory();
-        var git = _gitService ?? _codeStudioViewModel?.GitService ?? new GitService();
+        var git = _gitService ?? _codeStudioViewModel?.Git.GitService ?? new GitService();
 
         try
         {

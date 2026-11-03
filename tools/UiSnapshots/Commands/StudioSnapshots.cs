@@ -255,17 +255,17 @@ internal static class StudioSnapshots
         if (options.Flag("git-demo") || options.Flag("diff") || options.Value("sidebar") == "sourcecontrol")
         {
             var root = storage.ActiveWorkspaceRootPath;
-            Snapshot.Wait(vm.GitService.InitRepositoryAsync(root));
+            Snapshot.Wait(vm.Git.GitService.InitRepositoryAsync(root));
             var dummyFile = Path.Combine(root, "Calculator.cs");
             File.WriteAllText(dummyFile, "public class Calculator\n{\n}\n");
-            Snapshot.Wait(vm.GitService.StageFileAsync(root, "Calculator.cs"));
-            Snapshot.Wait(vm.GitService.CommitAsync(root, "Initial commit"));
+            Snapshot.Wait(vm.Git.GitService.StageFileAsync(root, "Calculator.cs"));
+            Snapshot.Wait(vm.Git.GitService.CommitAsync(root, "Initial commit"));
             File.AppendAllText(dummyFile, "    public int Add(int a, int b) => a + b;\n");
             var untracked = Path.Combine(root, "NewFeature.cs");
             File.WriteAllText(untracked, "// New feature code\n");
-            Snapshot.Wait(vm.RefreshGitStatusAsync());
-            vm.GitCommitMessage = "feat(calculator): implement Add method and new feature";
-            vm.GitAheadCount = 1;
+            Snapshot.Wait(vm.Git.RefreshGitStatusAsync());
+            vm.Git.GitCommitMessage = "feat(calculator): implement Add method and new feature";
+            vm.Git.GitAheadCount = 1;
 
             if (options.Flag("diff"))
             {

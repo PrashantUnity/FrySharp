@@ -152,10 +152,10 @@ public class CSharpNotebookStudioVsCodeLayoutTests : IDisposable
     }
 
     [Fact]
-    public void NotebookStudio_ImplementsIGitStudioHostViewModel()
+    public void NotebookStudio_SourceControl_IsTheSharedGitPanel()
     {
         var studio = CreateStudio();
-        Assert.IsAssignableFrom<PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git.IGitStudioHostViewModel>(studio);
+        Assert.IsAssignableFrom<PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Git.IGitStudioHostViewModel>(studio.Git);
     }
 
     [Fact]

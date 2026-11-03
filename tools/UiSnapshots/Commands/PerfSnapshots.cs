@@ -229,7 +229,12 @@ internal static class PerfSnapshots
 
         var switches = new List<Sample>();
         int scansBeforeSwitches = storage.WorkspaceScanCount;
-        double switchStall = probe.Measure(() =>
+        var switchGcBefore = (Gen0: GC.CollectionCount(0), Gen1: GC.CollectionCount(1), Gen2: GC.CollectionCount(2), Pause: GC.GetTotalPauseDuration(),
+            UiBytes: GC.GetAllocatedBytesForCurrentThread(), AllBytes: GC.GetTotalAllocatedBytes(precise: true));
+        // --alloc-types: also which types the switches allocate and which full collections they ran into (and why).
+        using var sampler = options.Flag("alloc-types") ? new AllocationSampler() : null;
+        double switchStall = 0;
+        void SwitchTabs() => switchStall = probe.Measure(() =>
         {
             for (int i = 0; i < rounds * codeVm.OpenTabs.Count; i++)
             {
@@ -237,13 +242,53 @@ internal static class PerfSnapshots
                 switches.Add(Timed(window, () => Pump(codeVm.SwitchToTabAsync(tab))));
             }
         });
+        // --jit-watch: what the JIT compiles over the switches (see JitWatcher: it decides when hot code gets optimized).
+        using var jitWatcher = options.Flag("jit-watch") ? new JitWatcher() : null;
+        if (sampler != null) sampler.Report("over the tab switches", SwitchTabs);
+        else if (jitWatcher != null) jitWatcher.Report("over the tab switches", SwitchTabs);
+        else SwitchTabs();
 
         int scansDuringSwitches = storage.WorkspaceScanCount - scansBeforeSwitches;
+
+        // --editor-props: what the code editor's text is drawn with (font, features, sizes): what text shaping costs.
+        if (options.Flag("editor-props") && window.GetVisualDescendants().OfType<AvaloniaEdit.TextEditor>().FirstOrDefault(e => e.IsEffectivelyVisible) is { } codeEditor)
+        {
+            var textView = codeEditor.TextArea.TextView;
+            Console.WriteLine($"  editor: FontFamily '{codeEditor.FontFamily}' ({codeEditor.FontFamily.GetHashCode()}) size {codeEditor.FontSize} weight {codeEditor.FontWeight} style {codeEditor.FontStyle} stretch {codeEditor.FontStretch}; " +
+                              $"text view FontFamily '{Avalonia.Controls.Documents.TextElement.GetFontFamily(textView)}' features '{Avalonia.Controls.Documents.TextElement.GetFontFeatures(textView)}' " +
+                              $"letter spacing {Avalonia.Controls.Documents.TextElement.GetLetterSpacing(textView)}; visual lines {textView.VisualLines.Count}; bounds {textView.Bounds.Size}");
+            var family = codeEditor.FontFamily;
+            var typeface = new Avalonia.Media.Typeface(family);
+            var g1 = typeface.GlyphTypeface;
+            var g2 = new Avalonia.Media.Typeface(family).GlyphTypeface;
+            Console.WriteLine($"  editor font family: names {string.Join("|", family.FamilyNames)}; key {family.Key?.GetType().Name} {family.Key}; " +
+                              $"glyph typeface {g1.FamilyName} {g1.GetType().Name}, same object twice: {ReferenceEquals(g1, g2)}; " +
+                              $"{Median(Repeat(200, () => new Avalonia.Media.Typeface(family).GlyphTypeface)) * 1000:F1} us to resolve");
+            var line = "            var seen = new Dictionary<int, int>();   // value -> index where it was seen".AsMemory();
+            var shaperOptions = new Avalonia.Media.TextFormatting.TextShaperOptions(g1, 13);
+            Console.WriteLine($"  shaping one code line: {Median(Repeat(200, () => Avalonia.Media.TextFormatting.TextShaper.Current.ShapeText(line, shaperOptions).Length)) * 1000:F1} us; " +
+                              $"a TextLayout of it: {Median(Repeat(100, () => new Avalonia.Media.TextFormatting.TextLayout(line.ToString(), typeface, 13, Avalonia.Media.Brushes.White).Width)) * 1000:F1} us");
+        }
 
         Console.WriteLine();
         Console.WriteLine($"{"file open",-14}{Median(opens.Select(s => s.ToLayout)),14:F1}{"",14}{Median(opens.Select(s => s.ToFrame)),14:F1}   ({opens.Count} opens)");
         Console.WriteLine($"{"tab switch",-14}{Median(switches.Select(s => s.ToLayout)),14:F1}{"",14}{Median(switches.Select(s => s.ToFrame)),14:F1}   ({switches.Count} switches, {codeVm.OpenTabs.Count} tabs)");
         Console.WriteLine($"longest input wait: {openStall:F1} ms over the file opens, {switchStall:F1} ms over the tab switches");
+        Console.WriteLine($"slowest tab switch {switches.Max(s => s.ToFrame):F1} ms; the garbage collector ran {GC.CollectionCount(0) - switchGcBefore.Gen0} gen-0, {GC.CollectionCount(1) - switchGcBefore.Gen1} gen-1 and {GC.CollectionCount(2) - switchGcBefore.Gen2} gen-2 collections over the switches, pausing for {(GC.GetTotalPauseDuration() - switchGcBefore.Pause).TotalMilliseconds:F0} ms in all; allocated per switch {(GC.GetAllocatedBytesForCurrentThread() - switchGcBefore.UiBytes) / 1048576.0 / switches.Count:F1} MB on the UI thread, {(GC.GetTotalAllocatedBytes(precise: true) - switchGcBefore.AllBytes) / 1048576.0 / switches.Count:F1} MB in all");
+
+        // The same once the JIT has optimized the code these use. Until no new method has been compiled for a moment the
+        // runtime keeps running hot code unoptimized, so the first opens and switches of a session cost up to twice as
+        // much, and how far that warm-up has got by then varies from run to run: these are the numbers to hold to budget.
+        Dispatcher.UIThread.RunJobs();
+        Thread.Sleep(1500);
+        Dispatcher.UIThread.RunJobs();
+        var openedTabs = codeVm.OpenTabs.Skip(1).ToList();
+        foreach (var tab in openedTabs) Pump(codeVm.CloseTabAsync(tab));
+        Dispatcher.UIThread.RunJobs();
+        var warmOpens = scripts.Skip(1).Select(script => Timed(window, () => Pump(codeVm.UpdateActiveScriptAsync(script)))).ToList();
+        var warmSwitches = Enumerable.Range(0, codeVm.OpenTabs.Count * 2).Select(i => Timed(window, () => Pump(codeVm.SwitchToTabAsync(codeVm.OpenTabs[i % codeVm.OpenTabs.Count])))).ToList();
+        Console.WriteLine($"warmed up: file open {Median(warmOpens.Select(s => s.ToLayout)):F1} ms (+frame {Median(warmOpens.Select(s => s.ToFrame)):F1}), " +
+                          $"tab switch {Median(warmSwitches.Select(s => s.ToLayout)):F1} ms (+frame {Median(warmSwitches.Select(s => s.ToFrame)):F1})");
         Console.WriteLine();
         Console.WriteLine($"Workspace scans: {scansDuringPages} during {rounds} rounds of 6 page switches, {scansDuringSwitches} during {switches.Count} tab switches");
         Console.WriteLine($"Memory after round 1: {memoryAfterFirstRound / 1048576.0:F1} MB, after round {rounds}: {memoryAtEnd / 1048576.0:F1} MB " +
@@ -498,6 +543,62 @@ internal static class PerfSnapshots
         // The Hub draws a capped number of cards; the button that reveals the rest must really be on screen.
         if (options.Flag("binding-census")) BindingCensus(window);
 
+        // --hub-census: what the Hub draws, by control type, and what one frame of it costs with and without its shadows.
+        if (options.Flag("hub-census"))
+        {
+            Navigate(window, () => host.NavigateToManager(), () => ReferenceEquals(host.CurrentPage, host.ManagerViewModel));
+            Snapshot.WaitFor(() => !host.ManagerViewModel.IsRefreshingList, TimeSpan.FromMinutes(1));
+            var hubView = (Control)view.Pages.ViewFor(host.ManagerViewModel)!;
+            foreach (var (name, go, arrived) in new (string, Action, Func<bool>)[]
+                     {
+                         ("Hub", () => host.NavigateToManager(), () => ReferenceEquals(host.CurrentPage, host.ManagerViewModel)),
+                         ("Docs", () => host.NavigateToDocs(), () => ReferenceEquals(host.CurrentPage, host.DocsViewModel)),
+                     })
+            {
+                Navigate(window, () => host.NavigateToSettings(), () => ReferenceEquals(host.CurrentPage, host.SettingsViewModel));
+                Navigate(window, go, arrived);
+                var frames = Enumerable.Range(0, 6).Select(_ => { var c = Stopwatch.StartNew(); using (window.CaptureRenderedFrame()) { } return c.Elapsed.TotalMilliseconds; }).ToList();
+                Console.WriteLine($"  frames after arriving on {name}: {string.Join(", ", frames.Select(f => f.ToString("F1")))} ms");
+            }
+            Navigate(window, () => host.NavigateToManager(), () => ReferenceEquals(host.CurrentPage, host.ManagerViewModel));
+            var shown = hubView.GetVisualDescendants().Where(v => v.IsEffectivelyVisible).ToList();
+            Console.WriteLine($"hub census: {shown.Count:N0} visible visuals, {shown.OfType<Avalonia.Controls.Shapes.Shape>().Count()} shapes, " +
+                              $"{shown.OfType<Border>().Count(b => b.BoxShadow.Count > 0)} borders with a shadow, {shown.OfType<Material.Icons.Avalonia.MaterialIcon>().Count()} icons");
+            foreach (var group in shown.GroupBy(v => v.GetType().Name).OrderByDescending(g => g.Count()).Take(12))
+            {
+                Console.WriteLine($"  {group.Key,-34} {group.Count(),6:N0}");
+            }
+
+            double FullFrame() => Median(Repeat(5, () => { hubView.InvalidateVisual(); foreach (var v in shown) v.InvalidateVisual(); using (window.CaptureRenderedFrame()) { } }));
+            Console.WriteLine($"  hub frame, everything redrawn: {FullFrame():F1} ms");
+            // What each part of the Hub costs to draw: the frame with that part hidden.
+            var parts = shown.OfType<Control>()
+                .Where(c => c.GetType().Namespace?.Contains(".Controls.Hub") == true || (c is Border b && b.Background is Avalonia.Media.IGradientBrush))
+                .ToList();
+            foreach (var part in parts)
+            {
+                part.IsVisible = false;
+                Console.WriteLine($"  without {part.GetType().Name}{(part is Border ? " (gradient " + part.Bounds.Size + ")" : "")}: {FullFrame():F1} ms");
+                part.IsVisible = true;
+            }
+
+            // What each piece costs to draw on its own (into a bitmap of its size, children included): the deepest
+            // costly pieces are the ones to look at.
+            var costs = new List<(Control Piece, double Ms)>();
+            foreach (var piece in hubView.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible && c is not TextBlock && c.Bounds.Width >= 8 && c.Bounds.Height >= 8))
+            {
+                var size = new Avalonia.PixelSize((int)Math.Ceiling(piece.Bounds.Width), (int)Math.Ceiling(piece.Bounds.Height));
+                using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(size);
+                costs.Add((piece, Median(Repeat(3, () => bitmap.Render(piece)))));
+            }
+
+            foreach (var (piece, ms) in costs.Where(c => c.Ms >= 2).OrderByDescending(c => c.Piece.GetVisualAncestors().Count()).ThenByDescending(c => c.Ms).Take(25))
+            {
+                Console.WriteLine($"    {ms,6:F1} ms  depth {piece.GetVisualAncestors().Count(),2}  {piece.GetType().Name} {piece.Name} [{string.Join('.', piece.Classes)}] {piece.Bounds.Size} in {piece.GetVisualAncestors().OfType<Control>().FirstOrDefault(a => a.GetType().Namespace?.Contains(".Controls.Hub") == true)?.GetType().Name}");
+            }
+
+        }
+
         var hub = host.ManagerViewModel;
         var showMore = (view.Pages.ViewFor(hub) as Control)?.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Command == hub.ShowMoreItemsCommand);
         // Its own flag (bound to HasHiddenItems): the Hub itself is hidden by now, another page is showing.
@@ -523,7 +624,7 @@ internal static class PerfSnapshots
             PerfLoading.BigImage(window, codeVm, storage, probe, megapixels);
         }
 
-        if (options.Int("cells", 0) is > 0 and var cellCount) LongNotebook(window, host, storage, cellCount);
+        if (options.Int("cells", 0) is > 0 and var cellCount) LongNotebook(window, host, storage, cellCount, options.Flag("alloc-types"));
         if (options.Int("external", 0) is > 0 and var externalFiles) ExternalWorkspace(window, host, storage, externalFiles);
 
         window.Close();
@@ -531,7 +632,7 @@ internal static class PerfSnapshots
     }
 
     // --cells n: one notebook of n code cells, opened in the Notebook Studio: what a long notebook costs to show.
-    private static void LongNotebook(Window window, CSharpStudioHostViewModel host, LocalScriptStorageService storage, int cells)
+    private static void LongNotebook(Window window, CSharpStudioHostViewModel host, LocalScriptStorageService storage, int cells, bool allocTypes)
     {
         var notebook = Pump(storage.CreateNewNotebookAsync("Long notebook"));
         notebook.Cells.Clear();
@@ -564,14 +665,79 @@ internal static class PerfSnapshots
         {
             Navigate(window, () => host.NavigateToNotebookStudio(notebook), () => ReferenceEquals(host.CurrentPage, host.NotebookStudioViewModel));
             var scroller = notebookView.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.Name == "NotebookCanvasScrollViewer");
+
             int Realized() => notebookView.GetVisualDescendants().OfType<BindableTextEditor>().Count();
             var steps = new List<double>();
-            for (int i = 0; i < 25; i++)
+            var gcBefore = (Gen2: GC.CollectionCount(2), Pause: GC.GetTotalPauseDuration(), Bytes: GC.GetAllocatedBytesForCurrentThread());
+            // Cell views built over the scroll: a recycled cell keeps its view, so this counts the cells built from scratch.
+            var cellViews = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            void NoteCellViews() { foreach (var v in notebookView.GetVisualDescendants().OfType<NotebookCellOutputControl>()) cellViews.Add(v); }
+            NoteCellViews();
+            int cellViewsBefore = cellViews.Count;
+            void PageDown()
             {
-                steps.Add(Timed(window, () => { scroller.PageDown(); Dispatcher.UIThread.RunJobs(); }).ToFrame);
+                for (int i = 0; i < 25; i++)
+                {
+                    steps.Add(Timed(window, () => { scroller.PageDown(); Dispatcher.UIThread.RunJobs(); }).ToFrame);
+                    NoteCellViews();
+                }
             }
 
-            Console.WriteLine($"  scrolling a page at a time: {Median(steps):F0} ms per page (slowest {steps.Max():F0} ms); code editors alive: {Realized()} of {cells}");
+            // --alloc-types: which types the cells that come into view allocate, and the collections they run into.
+            using (var sampler = allocTypes ? new AllocationSampler() : null)
+            {
+                if (sampler != null) sampler.Report("while scrolling the notebook", PageDown);
+                else PageDown();
+            }
+
+            Console.WriteLine($"  scrolling a page at a time: {Median(steps):F0} ms per page (slowest {steps.Max():F0} ms); code editors alive: {Realized()} of {cells}; " +
+                              $"{GC.CollectionCount(2) - gcBefore.Gen2} full collections pausing {(GC.GetTotalPauseDuration() - gcBefore.Pause).TotalMilliseconds:F0} ms, {(GC.GetAllocatedBytesForCurrentThread() - gcBefore.Bytes) / 1048576.0 / steps.Count:F1} MB allocated per page; " +
+                              $"{(cellViews.Count - cellViewsBefore) / (double)steps.Count:F1} cell views built per page, {notebookView.GetVisualDescendants().OfType<NotebookCellOutputControl>().Count()} in the tree");
+            // The floating toolbar of a cell is built the first time the cell is selected or hovered (LazyContent): what that costs.
+            var plainCells = notebookView.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>()
+                .Where(c => c.IsEffectivelyVisible && c.DataContext is PdfEditorApp.Plugins.CSharpEditor.ViewModels.Notebooks.NotebookCellViewModel { IsSelected: false })
+                .Select(c => (PdfEditorApp.Plugins.CSharpEditor.ViewModels.Notebooks.NotebookCellViewModel)c.DataContext!).Take(3).ToList();
+            if (plainCells.Count > 0)
+            {
+                int Visuals() => notebookView.GetVisualDescendants().Count();
+                int visualsBefore = Visuals();
+                var firstSelect = plainCells.Select(cell => Timed(window, () => cell.IsSelected = true).ToFrame).ToList();
+                Console.WriteLine($"  ({Visuals() - visualsBefore} visuals built for {plainCells.Count} toolbars)");
+                foreach (var cell in plainCells) cell.IsSelected = false;
+                Console.WriteLine($"  selecting a cell for the first time (builds its toolbar): {Median(firstSelect):F1} ms with the frame");
+            }
+
+            var oneCell = notebookView.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().FirstOrDefault(c => c.DataContext is PdfEditorApp.Plugins.CSharpEditor.ViewModels.Notebooks.NotebookCellViewModel && c.GetVisualParent() is VirtualizingStackPanel);
+            if (oneCell != null)
+            {
+                var all = oneCell.GetVisualDescendants().ToList();
+                var logical = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(oneCell).ToList();
+                Console.WriteLine($"  one cell: {all.Count} visuals ({all.Count(v => v.IsEffectivelyVisible)} visible), {logical.Count} logical; most common: " +
+                                  string.Join(", ", all.GroupBy(v => v.GetType().Name).OrderByDescending(g => g.Count()).Take(8).Select(g => $"{g.Key} {g.Count()}")));
+                // How many styles each control of the cell carries (Avalonia keeps one frame per style whose selector could
+                // match the control's type, active or not, plus control themes): what makes a control heavy to build.
+                var valuesField = typeof(Avalonia.AvaloniaObject).GetField("_values", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var framesField = valuesField?.FieldType.GetField("_frames", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (framesField != null)
+                {
+                    int Frames(Avalonia.Visual v) => (framesField.GetValue(valuesField!.GetValue(v)) as System.Collections.ICollection)?.Count ?? 0;
+                    Console.WriteLine($"    style frames per control: {all.Average(Frames):F1} on average; by type: " +
+                                      string.Join(", ", all.GroupBy(v => v.GetType().Name).OrderByDescending(g => g.Average(Frames)).Take(8).Select(g => $"{g.Key} {g.Average(Frames):F0}")));
+                    if (all.OfType<Button>().FirstOrDefault() is { } button)
+                    {
+                        var frames = (framesField.GetValue(valuesField!.GetValue(button)) as System.Collections.IEnumerable)!.Cast<object>().ToList();
+                        var selectors = frames.Select(f => (f.GetType().GetProperty("Source", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(f) as Avalonia.Styling.Style)?.Selector?.ToString()).Where(x => x != null).ToList();
+                        Console.WriteLine($"    a cell Button carries {frames.Count} style frames ({selectors.Distinct().Count()} distinct styles; a style there twice means the studio's styles are included twice)");
+                    }
+                }
+                var output = all.OfType<NotebookCellOutputControl>().FirstOrDefault();
+                if (output != null)
+                {
+                    var inOutput = output.GetVisualDescendants().ToList();
+                    Console.WriteLine($"    of which the output control: {inOutput.Count} visuals ({inOutput.Count(v => v.IsEffectivelyVisible)} visible); " +
+                                      string.Join(", ", inOutput.GroupBy(v => v.GetType().Name).OrderByDescending(g => g.Count()).Take(8).Select(g => $"{g.Key} {g.Count()}")));
+                }
+            }
 
             scroller.ScrollToHome();
             Dispatcher.UIThread.RunJobs();
@@ -599,10 +765,13 @@ internal static class PerfSnapshots
         notebookVm.SelectedActivityBarIndex = 0;
         Dispatcher.UIThread.RunJobs();
         Console.WriteLine($"  opening the Outline panel: {outline.ToFrame:F0} ms; the Search panel: {search.ToFrame:F0} ms ({cells} cells)");
+        // Each TextMate model blocks a thread-pool thread: this must follow the editors on screen, not every editor ever built.
+        Console.WriteLine($"  TextMate models alive: {PdfEditorApp.Plugins.CSharpEditor.Controls.Editor.SyntaxColoring.LiveInstallations}");
 
         // What one cell is made of: the two heaviest parts built on their own, 40 of each.
         Console.WriteLine($"  one code editor:        {Cost(40, () => new BindableTextEditor())}");
         Console.WriteLine($"  one cell output control: {Cost(40, () => new NotebookCellOutputControl())}");
+        Console.WriteLine($"  TextMate models alive after building them off screen: {PdfEditorApp.Plugins.CSharpEditor.Controls.Editor.SyntaxColoring.LiveInstallations}");
     }
 
     // --external n: open a folder of n source files (25 per folder), the way a big project is opened, and see what the

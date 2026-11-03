@@ -6,6 +6,7 @@ using System.Threading;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Rendering;
@@ -29,6 +30,13 @@ public static class SyntaxColoring
 {
     private static readonly ConditionalWeakTable<TextEditor, EditorColoring> Editors = new();
     private static bool _textMateUnavailable;
+    private static int _liveInstallations;
+
+    /// <summary>
+    /// How many editors hold a TextMate model now. Each one keeps a thread-pool thread blocked for its tokenizer
+    /// (TextMateSharp 2.0.4), so this must follow the editors on screen, not the editors ever built (perf tool, tests).
+    /// </summary>
+    public static int LiveInstallations => Volatile.Read(ref _liveInstallations);
     private static int _subscribed;
     private static int _refreshQueued;
 
@@ -81,17 +89,60 @@ public static class SyntaxColoring
 
     private readonly record struct ThemeDefinitionAndScheme(FrySharp.Sdk.ThemeDefinition? Theme, bool IsDark);
 
-    private sealed class EditorColoring(TextEditor editor)
+    private sealed class EditorColoring
     {
+        private readonly TextEditor editor;
+
+        public EditorColoring(TextEditor editor)
+        {
+            this.editor = editor;
+            editor.DetachedFromVisualTree += OnDetached;
+            editor.AttachedToVisualTree += OnAttached;
+        }
+
         public TextMate.Installation? Installation { get; private set; }
         public string? Scope { get; private set; }
         public CSharpRoleColorizer? Overlay { get; private set; }
         private IRawTheme? _theme;
         private bool _isDark;
 
+        // What the editor was last coloured for, so it can be coloured again when it comes back on screen.
+        private (ILanguageDefinition? Language, bool IsDark, bool Enabled, string? FileExtension)? _last;
+        private bool _released;
+
+        // A TextMate model keeps a thread-pool thread blocked for its tokenizer as long as it lives. An editor that leaves
+        // the screen for good (a notebook cell scrolled away and rebuilt, a closed tab) must give it back: a long notebook
+        // used to leave a hundred of them behind, and every async step of the studio then waited for the pool to grow (a
+        // folder took 80 s to open). Pages kept alive only hide, so switching pages costs nothing here.
+        private void OnDetached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (Installation == null && Overlay == null) return;
+            Uninstall();
+            _released = true;
+        }
+
+        private void OnAttached(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!_released || _last is not { } last) return;
+            _released = false;
+            Update(last.Language, last.IsDark, last.Enabled, last.FileExtension);
+        }
+
         public void Update(ILanguageDefinition? language, bool isDark, bool enabled, string? fileExtension)
         {
+            _last = (language, isDark, enabled, fileExtension);
             _isDark = isDark;
+
+            // Not on screen (built but not shown yet, or never): nothing is installed until it is. An editor made and
+            // dropped before it is shown used to keep its tokenizer's thread for the rest of the session.
+            if (!editor.IsAttachedToVisualTree())
+            {
+                Uninstall();
+                _released = true;
+                return;
+            }
+
+            _released = false;
             var scope = enabled && !_textMateUnavailable ? StudioTextMate.ScopeFor(language, fileExtension) : null;
             if (!enabled || scope == null || !TryInstall())
             {
@@ -142,6 +193,7 @@ public static class SyntaxColoring
             {
                 Installation = editor.InstallTextMate(StudioTextMate.Options, initCurrentDocument: true,
                     exceptionHandler: ex => Debug.WriteLine($"[SyntaxColoring] {ex.Message}"));
+                Interlocked.Increment(ref _liveInstallations);
                 Scope = null;
                 _theme = null;
                 return true;
@@ -159,7 +211,12 @@ public static class SyntaxColoring
         private void Uninstall()
         {
             RemoveOverlay();
-            Installation?.Dispose();
+            if (Installation != null)
+            {
+                Installation.Dispose();
+                Interlocked.Decrement(ref _liveInstallations);
+            }
+
             Installation = null;
             Scope = null;
             _theme = null;

@@ -98,6 +98,28 @@ public class ExternalChangeTests : IDisposable
     }
 
     [Fact]
+    public async Task AnOutsideChangeRightAfterAStudioSave_IsStillNoticed()
+    {
+        _storage.StartWatchingForChanges();
+        await _storage.LoadWorkspaceSummariesAsync();
+        var script = await _storage.CreateNewScriptAsync("Saved");
+        script.Code = "// saved by the studio";
+        await _storage.SaveScriptAsync(script);
+
+        var changed = new TaskCompletionSource<IReadOnlyCollection<string>?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _storage.ExternalFilesChanged += paths => changed.TrySetResult(paths);
+        var outside = Path.Combine(_storage.LibraryRootPath, "pulled.py");
+        await File.WriteAllTextAsync(outside, "print('from git pull')");
+
+        var winner = await Task.WhenAny(changed.Task, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.Same(changed.Task, winner);
+        var paths = await changed.Task;
+        Assert.NotNull(paths);
+        Assert.Contains(paths!, p => Path.GetFileName(p) == "pulled.py");
+        Assert.DoesNotContain(paths!, p => Path.GetFileName(p) == "Saved.frycs");
+    }
+
+    [Fact]
     public async Task RefreshingTheExplorer_KeepsTheFoldersTheUserHadOpenOpen()
     {
         var folder = await _storage.CreateFolderAsync(null, "Kept");

@@ -87,6 +87,7 @@ public partial class CSharpCodeStudioViewModel
     {
         _isPageActive = true;
         RefreshExplorerIfStaleAsync().FireAndForget(_activities, "Listing the workspace");
+        Git.OnHostActivated();
 
         // Reading the file index starts (or refreshes) its background walk, so Go to File is ready when it is used.
         _ = _storageService.FileIndex;
@@ -148,6 +149,8 @@ public partial class CSharpCodeStudioViewModel
 
         // A refresh keeps the folders the user had open open.
         var expandedFolders = Explorer.ExplorerItemViewModel.ExpandedFolderPaths(ExplorerRootItems);
+        // The items still there come back as they were: only the rows of what changed are redrawn.
+        var reuse = new Explorer.ExplorerItemReuse(ExplorerRootItems);
         ExplorerRootItems.Clear();
         var folderNodes = new Dictionary<string, Explorer.ExplorerItemViewModel>(StringComparer.OrdinalIgnoreCase);
         // The file names already in each folder (the root under its own key): a name-by-name scan of the siblings for every
@@ -165,7 +168,7 @@ public partial class CSharpCodeStudioViewModel
             var parentPath = lastSlash >= 0 ? relativePath[..lastSlash] : string.Empty;
             var parent = GetOrCreateFolder(parentPath);
 
-            var node = CreateFolderItem(name, relativePath, isExpanded: expandedFolders.Contains(relativePath), parent: parent);
+            var node = reuse.Folder(relativePath, parent, () => CreateFolderItem(name, relativePath, isExpanded: expandedFolders.Contains(relativePath), parent: parent));
             AddToTree(parent, node);
             folderNodes[relativePath] = node;
             return node;
@@ -200,7 +203,7 @@ public partial class CSharpCodeStudioViewModel
                 continue;
             }
 
-            var docItem = CreateFileItem(name, s.Id, parent, fullPath, s.IsSourceFile ? _languages.Registry.Get(s.LanguageId) : null);
+            var docItem = reuse.File(fullPath, s.Id, name, parent, () => CreateFileItem(name, s.Id, parent, fullPath, s.IsSourceFile ? _languages.Registry.Get(s.LanguageId) : null));
             AddToTree(parent, docItem);
         }
 
@@ -488,27 +491,15 @@ public partial class CSharpCodeStudioViewModel
     {
         if (item == null || item.IsExternalGroup) return;
 
-        if (item.IsDirectory)
+        var ids = ExplorerDeletion.DocumentIds(item);
+        var (result, error) = await ExplorerDeletion.DeleteAsync(_storageService, _dialogs, item);
+        if (result == ExplorerDeletionResult.Failed) CompilerStatusText = error ?? string.Empty;
+        if (result != ExplorerDeletionResult.Deleted) return;
+
+        // The tabs of what went close; one with unsaved edits stays open, so they can still be saved.
+        foreach (var tab in OpenTabs.Where(t => ids.Contains(t.Id, StringComparer.OrdinalIgnoreCase) && !t.IsDirty).ToList())
         {
-            try
-            {
-                await _storageService.DeleteFolderAsync(item.FullPath);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to delete folder '{item.FullPath}': {ex.Message}");
-            }
-        }
-        else if (!string.IsNullOrEmpty(item.DocumentId))
-        {
-            try
-            {
-                await _storageService.DeleteItemAsync(item.DocumentId);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to delete '{item.DocumentId}': {ex.Message}");
-            }
+            await CloseTabAsync(tab);
         }
 
         if (item.Parent != null)
@@ -890,7 +881,10 @@ public partial class CSharpCodeStudioViewModel
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CSharpEditorPlugin] Failed to rename folder '{item.FullPath}': {ex.Message}");
+                // The disk still has the old name: so does the row, and the user hears why.
+                var folderName = Path.GetFileName(item.FullPath.TrimEnd('/', '\\'));
+                CompilerStatusText = $"⚠️ Couldn't rename {folderName}: {ex.Message}";
+                if (!string.IsNullOrEmpty(folderName)) item.Name = folderName;
             }
             return;
         }
@@ -1023,35 +1017,7 @@ public partial class CSharpCodeStudioViewModel
         if (item == null) return;
         var rel = !string.IsNullOrEmpty(item.FullPath) ? item.FullPath : item.Name;
         var fullPath = Path.IsPathRooted(rel) ? rel : Path.GetFullPath(Path.Combine(_storageService.ActiveWorkspaceRootPath, rel.Replace('/', Path.DirectorySeparatorChar)));
-
-        if (string.IsNullOrWhiteSpace(fullPath) || (!File.Exists(fullPath) && !Directory.Exists(fullPath))) return;
-
-        try
-        {
-            if (OperatingSystem.IsMacOS())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("open", $"\"{target}\"");
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = item.IsDirectory ? $"\"{fullPath}\"" : $"/select,\"{fullPath}\"",
-                    UseShellExecute = true
-                });
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("xdg-open", $"\"{target}\"");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[CSharpEditorPlugin] Reveal in file manager failed: {ex.Message}");
-        }
+        Common.FileManagerReveal.Reveal(fullPath);
     }
 
     [RelayCommand]

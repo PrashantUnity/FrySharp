@@ -62,7 +62,7 @@ public partial class MainWindow : Window
         }
 
         StudioHostVm.RequestClose = () => Close();
-        Closing += (_, _) => StudioHostVm.FlushSettings();
+        Closing += OnWindowClosing;
         DataContext = StudioHostVm;
         StudioHost.DataContext = StudioHostVm;
 
@@ -71,6 +71,28 @@ public partial class MainWindow : Window
         _menuCoordinator.UpdateMenuStates();
 
         InitializeExtensibility();
+    }
+
+    // Set once the user answered the unsaved-changes question, so the second Close() goes through.
+    private bool _closeApproved;
+
+    // Quitting with unsaved edits asks first (Save All / Don't Save / Cancel), as VS Code does; the window stays open meanwhile.
+    private async void OnWindowClosing(object? sender, WindowClosingEventArgs e)
+    {
+        StudioHostVm.FlushSettings();
+        if (_closeApproved || StudioHostVm.UnsavedDocumentTitles.Count == 0) return;
+
+        e.Cancel = true;
+        try
+        {
+            if (!await StudioHostVm.ConfirmCloseStudioAsync()) return;
+            _closeApproved = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] Closing failed: {ex}");
+        }
     }
 
     private void InitializeExtensibility()

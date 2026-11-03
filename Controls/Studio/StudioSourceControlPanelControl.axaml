@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:common="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
@@ -167,7 +168,7 @@
                         <Grid ColumnDefinitions="*,Auto,Auto" Height="26" MinHeight="26">
                             <Button Grid.Column="0" Command="{Binding ToggleStagedSectionCommand}" Classes="git-row-btn" Padding="4,4">
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="{Binding StagedSectionChevronKind}"
+                                    <materialIcons:MaterialIcon Kind="{Binding StagedSectionChevronKind, Converter={x:Static common:IconKindConverter.Instance}}"
                                                                 Width="12" Height="12"
                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                     <TextBlock Text="STAGED CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
@@ -199,7 +200,7 @@
                                             <Button Grid.Column="0" Command="{Binding $parent[UserControl].DataContext.OpenChangedFileCommand}"
                                                     CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
-                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind, Converter={x:Static common:IconKindConverter.Instance}}" Foreground="{Binding FileIconColor}"
                                                                                 Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                     <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
                                                                lt:Tokens.FontSize="DsFontSize200"
@@ -248,7 +249,7 @@
                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" Height="26" MinHeight="26">
                             <Button Grid.Column="0" Command="{Binding ToggleWorkingSectionCommand}" Classes="git-row-btn" Padding="4,4">
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="{Binding WorkingSectionChevronKind}"
+                                    <materialIcons:MaterialIcon Kind="{Binding WorkingSectionChevronKind, Converter={x:Static common:IconKindConverter.Instance}}"
                                                                 Width="12" Height="12"
                                                                 Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" />
                                     <TextBlock Text="CHANGES" lt:Tokens.FontSize="DsFontSize100" lt:Tokens.FontWeight="DsWeightStrong"
@@ -285,7 +286,7 @@
                                             <Button Grid.Column="0" Command="{Binding $parent[UserControl].DataContext.OpenChangedFileCommand}"
                                                     CommandParameter="{Binding}" Classes="git-row-btn" Padding="4,2" Height="26" MinHeight="26">
                                                 <Grid ColumnDefinitions="Auto,Auto,*" VerticalAlignment="Center" Margin="0,0,4,0">
-                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind}" Foreground="{Binding FileIconColor}"
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding FileIconKind, Converter={x:Static common:IconKindConverter.Instance}}" Foreground="{Binding FileIconColor}"
                                                                                 Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                     <TextBlock Grid.Column="1" Text="{Binding FileName}" Classes.deleted="{Binding IsDeleted}"
                                                                lt:Tokens.FontSize="DsFontSize200"

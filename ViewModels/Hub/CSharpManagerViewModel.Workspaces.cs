@@ -21,6 +21,15 @@ public partial class CSharpManagerViewModel
     public int RecentScriptsCount => RecentWorkspaces.Count(w => w.IsScript);
     public int RecentPinnedCount => RecentWorkspaces.Count(w => w.IsPinned);
     public bool HasFilteredWorkspaces => FilteredWorkspaces.Count > 0;
+
+    /// <summary>
+    /// A kind is picked in the side bar (Scripts, Notebooks, API Servers, Pinned): the list shows the library's documents of
+    /// that kind (what the side bar's counts count), not the recently opened workspaces.
+    /// </summary>
+    public bool IsLibraryListVisible => SelectedTypeFilter is "Scripts" or "Notebooks" or "Servers" or "Pinned";
+
+    public bool ShowRecentWorkspaces => !IsLibraryListVisible && HasFilteredWorkspaces;
+    public bool ShowRecentEmptyState => !IsLibraryListVisible && !HasFilteredWorkspaces;
     public bool IsRecentWorkspacesEmpty => RecentWorkspaces.Count == 0;
 
     public bool IsWorkspacesFilterActive => SelectedTypeFilter is "Workspaces" or "Workspace";
@@ -113,6 +122,8 @@ public partial class CSharpManagerViewModel
         OnPropertyChanged(nameof(RecentScriptsCount));
         OnPropertyChanged(nameof(RecentPinnedCount));
         OnPropertyChanged(nameof(HasFilteredWorkspaces));
+        OnPropertyChanged(nameof(ShowRecentWorkspaces));
+        OnPropertyChanged(nameof(ShowRecentEmptyState));
         OnPropertyChanged(nameof(IsRecentWorkspacesEmpty));
     }
 

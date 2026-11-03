@@ -122,8 +122,9 @@ public class ExplorerRowListTests
         Assert.Equal("A,z,Late,l1", Names(list));
     }
 
+    // A rebuild changes the list only where the rows differ: at most one removal and one insertion, whatever was changed.
     [Fact]
-    public void Suspend_TurnsManyChangesIntoOneRebuild()
+    public void Suspend_TurnsManyChangesIntoOneUpdate()
     {
         var (roots, a, _) = Sample();
         var list = new ExplorerRowList(roots);
@@ -137,9 +138,9 @@ public class ExplorerRowListTests
             Assert.Empty(events);
         }
 
-        Assert.Single(events);
-        Assert.Equal(NotifyCollectionChangedAction.Reset, events[0].Action);
+        Assert.InRange(events.Count, 1, 2);
         Assert.Equal(1 + 2 + 1 + 50, list.Rows.Count); // A, a1, N, z, f0..f49 (A open)
+        Assert.Equal("A,a1,N,z,f0", string.Join(",", list.Rows.Take(5).Select(r => r.Name)));
     }
 
     [Fact]
@@ -147,8 +148,8 @@ public class ExplorerRowListTests
     {
         var (roots, _, _) = Sample();
         var list = new ExplorerRowList(roots);
-        var resets = 0;
-        list.Rows.CollectionChanged += (_, e) => { if (e.Action == NotifyCollectionChangedAction.Reset) resets++; };
+        var changes = 0;
+        list.Rows.CollectionChanged += (_, _) => changes++;
 
         using (list.Suspend())
         {
@@ -157,10 +158,51 @@ public class ExplorerRowListTests
                 roots.Add(File("x"));
             }
 
-            Assert.Equal(0, resets);
+            Assert.Equal(0, changes);
         }
 
-        Assert.Equal(1, resets);
+        Assert.Equal(1, changes);
+        Assert.Equal("A,z,x", Names(list));
+    }
+
+    // A refresh of a workspace that didn't change gives the same items back: the rows on screen must stay as they are.
+    [Fact]
+    public void ARebuildToTheSameRows_RaisesNothing()
+    {
+        var (roots, _, _) = Sample();
+        var list = new ExplorerRowList(roots);
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        list.Rows.CollectionChanged += (_, e) => events.Add(e);
+
+        using (list.Suspend())
+        {
+            var extra = File("gone-again");
+            roots.Add(extra);
+            roots.Remove(extra);
+        }
+
+        Assert.Empty(events);
+        Assert.Equal("A,z", Names(list));
+    }
+
+    // A row added in the middle is inserted there: the rows before and after it (and their controls) stay.
+    [Fact]
+    public void ARowAddedInTheMiddle_IsInsertedWithoutResettingTheList()
+    {
+        var (roots, _, _) = Sample();
+        var list = new ExplorerRowList(roots);
+        var kept = list.Rows.ToList();
+        var events = new List<NotifyCollectionChangedEventArgs>();
+        list.Rows.CollectionChanged += (_, e) => events.Add(e);
+
+        roots.Insert(1, File("m"));
+
+        var change = Assert.Single(events);
+        Assert.Equal(NotifyCollectionChangedAction.Add, change.Action);
+        Assert.Equal(1, change.NewStartingIndex);
+        Assert.Equal("A,m,z", Names(list));
+        Assert.Same(kept[0], list.Rows[0]);
+        Assert.Same(kept[1], list.Rows[2]);
     }
 
     [Fact]

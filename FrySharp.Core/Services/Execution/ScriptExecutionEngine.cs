@@ -80,8 +80,10 @@ public class ScriptExecutionEngine
 
                 result.Success = true;
             }
-            catch (OperationCanceledException)
+            catch (Exception ex) when (ex is OperationCanceledException ||
+                                       (ex is TargetInvocationException { InnerException: OperationCanceledException } && ct.IsCancellationRequested))
             {
+                // Stop, seen by the program itself or by a loop the studio guards (Main is called by reflection, which wraps it).
                 result.WasCancelled = true;
                 liveWriter.WriteLine("\n⚠️ Execution was cancelled by user or timed out.");
             }

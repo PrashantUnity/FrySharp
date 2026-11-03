@@ -101,7 +101,7 @@
                                     VerticalAlignment="Center" HorizontalAlignment="Center"
                                     IsVisible="{Binding IsDirectory}"
                                     Cursor="Hand">
-                                <materialIcons:MaterialIcon Kind="{Binding ChevronKind}"
+                                <materialIcons:MaterialIcon Kind="{Binding ChevronKind, Converter={x:Static common:IconKindConverter.Instance}}"
                                                             Width="12" Height="12"
                                                             Foreground="{DynamicResource DsMutedBrush}"
                                                             VerticalAlignment="Center"
@@ -111,7 +111,7 @@
 
                         <!-- Col 2: Icon (Folder / Script) -->
                         <materialIcons:MaterialIcon Grid.Column="2"
-                                                    Kind="{Binding IconKind}"
+                                                    Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}"
                                                     Width="15" Height="15"
                                                     Foreground="{Binding IconColor}"
                                                     VerticalAlignment="Center"

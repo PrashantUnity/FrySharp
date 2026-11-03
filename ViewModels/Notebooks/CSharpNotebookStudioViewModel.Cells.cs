@@ -168,16 +168,41 @@ public partial class CSharpNotebookStudioViewModel
     [RelayCommand]
     public async Task SaveAsync()
     {
-        if (ActiveTab == null) return;
+        if (ActiveTab != null) await SaveTabAsync(ActiveTab);
+    }
 
-        // An ephemeral notebook must be saved even when not yet modified (user pressed Ctrl+S on a fresh tab).
-        if (ActiveTab.IsModified || ActiveTab.Notebook.IsEphemeral)
+    /// <summary>
+    /// Save As: writes the active notebook to <paramref name="filePath"/> (as Jupyter for .ipynb, as FrySharp for .frynb and
+    /// .csnb) and makes that file the tab's. False when it couldn't be written.
+    /// </summary>
+    public async Task<bool> SaveActiveNotebookAsAsync(string filePath)
+    {
+        if (ActiveTab is not { } tab) return false;
+        var written = await _storageService.SaveNotebookAsAsync(tab.Notebook, filePath);
+        if (written == null)
         {
-            ActiveTab.Notebook.IsEphemeral = false;
-            ActiveTab.Notebook.LastModified = DateTime.UtcNow;
-            var saved = await _storageService.SaveNotebookAsync(ActiveTab.Notebook);
-            ActiveTab.IsModified = !saved;
-            CompilerStatusText = saved ? "Saved" : "⚠️ Save failed — check disk space/permissions";
+            CompilerStatusText = $"⚠️ Couldn't save {Path.GetFileName(filePath)}: check the folder's permissions";
+            return false;
         }
+
+        tab.FilePath = written;
+        tab.Title = Path.GetFileName(written);
+        tab.IsModified = false;
+        CompilerStatusText = "Saved";
+        return true;
+    }
+
+    /// <summary>Saves <paramref name="tab"/>'s notebook if it has edits (or was never saved). False when the save failed.</summary>
+    private async Task<bool> SaveTabAsync(NotebookTabViewModel tab)
+    {
+        // An ephemeral notebook must be saved even when not yet modified (user pressed Ctrl+S on a fresh tab).
+        if (!tab.IsModified && !tab.Notebook.IsEphemeral) return true;
+
+        tab.Notebook.IsEphemeral = false;
+        tab.Notebook.LastModified = DateTime.UtcNow;
+        var saved = await _storageService.SaveNotebookAsync(tab.Notebook);
+        tab.IsModified = !saved;
+        CompilerStatusText = saved ? "Saved" : "⚠️ Save failed — check disk space/permissions";
+        return saved;
     }
 }

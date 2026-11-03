@@ -103,6 +103,8 @@ public class NotebookExecutionKernel : INotebookKernel, ISearchPathKernel
     // A cell's code as the next submission: the first, or one that continues from the state so far.
     private async Task<ScriptState<object>> RunSubmissionAsync(string code, CancellationToken ct)
     {
+        // Stop ends its loops even when they never look at a cancellation token.
+        code = LoopGuard.Instrument(code, Microsoft.CodeAnalysis.SourceCodeKind.Script);
         var priorState = _currentState;
         var submission = priorState == null
             ? CSharpScript.Create<object>(code, _scriptOptions, assemblyLoader: _assemblyLoader)

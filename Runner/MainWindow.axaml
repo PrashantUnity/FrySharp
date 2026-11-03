@@ -48,7 +48,7 @@
                     <NativeMenuItemSeparator />
                     <NativeMenuItem Header="Find..." Gesture="Meta+F" Click="Find_OnClick" />
                     <NativeMenuItem Header="Replace..." Gesture="Alt+Meta+F" Click="Replace_OnClick" />
-                    <NativeMenuItem Header="Find in Files" Gesture="Shift+Meta+F" Click="FindInFiles_OnClick" />
+                    <NativeMenuItem Header="Find in Files" Click="FindInFiles_OnClick" />
                     <NativeMenuItemSeparator />
                     <NativeMenuItem Header="Format Document" Gesture="Shift+Alt+F" Click="FormatDocument_OnClick" />
                 </NativeMenu>
@@ -74,7 +74,7 @@
                     <NativeMenuItem Header="Zoom Out" Click="ZoomOut_OnClick" />
                     <NativeMenuItem Header="Reset Zoom" Click="ResetZoom_OnClick" />
                     <NativeMenuItemSeparator />
-                    <NativeMenuItem Header="Return to Hub" Gesture="Meta+H" Click="ReturnToHub_OnClick" />
+                    <NativeMenuItem Header="Return to Hub" Gesture="Shift+Meta+H" Click="ReturnToHub_OnClick" />
                     <NativeMenuItem Header="Documentation &amp; Learning" Click="OpenDocs_OnClick" />
                     <NativeMenuItem Header="Blind 75 Algorithm Hub" Click="OpenBlind_OnClick" />
                     <NativeMenuItem Header="Customization &amp; Extensions..." Click="OpenCustomizationSettings_OnClick" />

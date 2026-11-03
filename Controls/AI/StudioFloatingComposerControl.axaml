@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:common="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
@@ -467,7 +468,7 @@
                                                         <Border Background="{DynamicResource DsBgBrush}" lt:Tokens.CornerRadius="DsRadiusMD" Padding="8,5" Margin="0,2"
                                                                 BorderBrush="{DynamicResource DsBorderBrush}" lt:Tokens.BorderThickness="DsBorderThin">
                                                             <Grid ColumnDefinitions="Auto,*,Auto">
-                                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding StatusIconKind}" Foreground="{Binding StatusColorHex}" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                                <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding StatusIconKind, Converter={x:Static common:IconKindConverter.Instance}}" Foreground="{Binding StatusColorHex}" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="1" Text="{Binding Title}" lt:Tokens.FontSize="DsFontSize200" Foreground="{DynamicResource DsTextBrush}" VerticalAlignment="Center" />
                                                             </Grid>
                                                         </Border>
@@ -636,7 +637,7 @@
                                                     BorderThickness="0"
                                                     Cursor="Hand">
                                                 <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind}" Width="13" Height="13" Foreground="{DynamicResource DsPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="13" Height="13" Foreground="{DynamicResource DsPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Prefix}" lt:Tokens.FontWeight="DsWeightStrong" lt:Tokens.FontSize="DsFontSize200" Foreground="{DynamicResource DsTextWhiteBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                     <TextBlock Grid.Column="2" Text="{Binding Description}" lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                                     <Border Grid.Column="3" Background="{DynamicResource DsSurfaceBrush}" BorderBrush="{DynamicResource DsBorderBrush}" lt:Tokens.BorderThickness="DsBorderThin" lt:Tokens.CornerRadius="DsRadiusSM" Padding="5,1" Margin="6,0,0,0">

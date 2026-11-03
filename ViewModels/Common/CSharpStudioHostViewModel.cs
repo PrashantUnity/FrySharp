@@ -80,6 +80,9 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
     /// <summary>What the screen shows of that work: progress lines, the status entry, toasts and the blocking card.</summary>
     public ActivityPresenterViewModel Activity { get; }
 
+    /// <summary>The studio's one modal question (unsaved changes, deletes, discards), drawn over every page.</summary>
+    public StudioDialogViewModel Dialogs { get; } = new();
+
     // Opening a document from one place and then another before the first is ready: only the last one may take the page.
     private readonly LatestOperation _navigation = new();
 
@@ -118,13 +121,18 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
         IScriptStorageService? storageService = null,
         IActivityService? activities = null)
     {
+        EnsureThreadPoolHeadroom();
         _activities = activities ?? new ActivityService();
         Activity = new ActivityPresenterViewModel(_activities);
         _languages = languages ?? StudioLanguageServices.Default;
         if (storageService == null)
         {
             // The user's own library: files changed outside the studio (git, another editor) should show up by themselves.
-            var library = new LocalScriptStorageService(languages: _languages.Registry);
+            var library = new LocalScriptStorageService(languages: _languages.Registry)
+            {
+                // Deleting from an Explorer moves things to the Trash, where they can be put back.
+                RecycleBin = new PdfEditorApp.Plugins.CSharpEditor.Services.Workspace.RecycleBin()
+            };
             library.StartWatchingForChanges();
             _storageService = library;
         }
@@ -135,6 +143,7 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
 
         // Bridge to the ambient extensibility context
         PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.StudioAppContext.Instance.LanguageServices = _languages;
+        RouteExtensionDialogsToStudio();
         PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.StudioAppContext.Instance.WorkspaceService.RootPathResolver = () => _storageService.ActiveWorkspaceRootPath;
 
 
@@ -207,6 +216,33 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
         ActiveInstance = this;
     }
 
+    // Extensions and customization scripts ask through the SDK's dialog API; on screen they get the studio's own card instead
+    // of a loose window that can end up behind the studio. Without a running UI (tests) nobody could answer, so the API keeps
+    // its own fallback there.
+    private void RouteExtensionDialogsToStudio()
+    {
+        if (!UiDispatchHelper.HasLiveUiLifetime) return;
+
+        var api = PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.StudioAppContext.Instance.UiService.DialogsService;
+        api.ConfirmHandler = async (message, title) =>
+            await Dialogs.ShowChoiceAsync(new DialogRequest(title, message, [],
+            [
+                new DialogChoice(StudioQuestions.Confirm, "Yes", DialogChoiceKind.Primary),
+                new DialogChoice(StudioQuestions.Cancel, "No", DialogChoiceKind.Cancel)
+            ])) == StudioQuestions.Confirm;
+        api.AlertHandler = (message, title) =>
+            Dialogs.ShowChoiceAsync(new DialogRequest(title, message, [], [new DialogChoice(StudioQuestions.Confirm, "OK", DialogChoiceKind.Primary)]));
+    }
+
+    // Every open editor's TextMate tokenizer blocks a thread-pool thread while it lives (AvaloniaEdit.TextMate's design), and
+    // so do the readers of running programs. With the pool's minimum at the core count, a notebook with a screenful of cells
+    // left the studio's async work (opening, saving, git) queued behind the pool's slow growth. Give it room up front.
+    private static void EnsureThreadPoolHeadroom()
+    {
+        ThreadPool.GetMinThreads(out var workers, out var io);
+        if (workers < 64) ThreadPool.SetMinThreads(64, io);
+    }
+
     // The second stage: only makes the first run fast. Nobody waits for it.
     private static Task WarmUpEngineAsync()
     {
@@ -274,7 +310,8 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
                 languages: _languages,
                 navigateToSettingsAction: () => NavigateToSettings(),
                 openServerAction: server => NavigateToServerStudio(server),
-                activities: _activities);
+                activities: _activities,
+                dialogs: Dialogs);
 
             var initialNotebook = new NotebookDocumentItem
             {
@@ -295,7 +332,8 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
                 languages: _languages,
                 navigateToSettingsAction: () => NavigateToSettings(),
                 openServerAction: server => NavigateToServerStudio(server),
-                activities: _activities);
+                activities: _activities,
+                dialogs: Dialogs);
         });
 
         void Publish()
@@ -394,7 +432,8 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
                 backToHubAction: NavigateToManager,
                 backToHomeAction: NavigateToHome,
                 openScriptAction: NavigateToCodeStudio,
-                openNotebookAction: NavigateToNotebookStudio);
+                openNotebookAction: NavigateToNotebookStudio,
+                dialogs: Dialogs);
         }
         else
         {
@@ -493,7 +532,69 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
     public int GetExecutionTimeoutSeconds() =>
         _settingsStore?.GetSetting(PluginId, "ExecutionTimeoutSeconds", DefaultExecutionTimeoutSeconds) ?? DefaultExecutionTimeoutSeconds;
 
-    /// <summary>Stops presenting activity (its timer and subscriptions); the studio is going away.</summary>
+    /// <summary>The titles of every open script and notebook with edits that aren't saved.</summary>
+    public IReadOnlyList<string> UnsavedDocumentTitles =>
+        [.. CodeStudioViewModel?.UnsavedDocumentTitles ?? [], .. NotebookStudioViewModel?.UnsavedDocumentTitles ?? []];
+
+    /// <summary>
+    /// Before the studio closes (the window, the app): asks once about every unsaved document — save them all, drop them, or
+    /// stay. False when the studio must stay open (the user cancelled, or a save failed).
+    /// </summary>
+    public async Task<bool> ConfirmCloseStudioAsync()
+    {
+        var unsaved = UnsavedDocumentTitles;
+        if (unsaved.Count == 0) return _closeConfirmed = true;
+
+        var answer = await StudioQuestions.AskToSaveAsync(Dialogs, unsaved, closingStudio: true);
+        if (answer is null or StudioQuestions.DontSave) return _closeConfirmed = true;
+        if (answer != StudioQuestions.Save) return false;
+        return _closeConfirmed = await SaveAllDocumentsAsync();
+    }
+
+    // The user answered the close question: what is still unsaved now is what they chose not to save.
+    private bool _closeConfirmed;
+
+    /// <summary>Saves every open script and notebook with unsaved edits. False when one of them couldn't be saved.</summary>
+    public async Task<bool> SaveAllDocumentsAsync()
+    {
+        var saved = CodeStudioViewModel == null || await CodeStudioViewModel.SaveAllAsync();
+        saved &= NotebookStudioViewModel == null || await NotebookStudioViewModel.SaveAllAsync();
+        return saved;
+    }
+
+    // A host that tears the studio down without asking (FryPDF unloading the plugin or exiting: its SDK has no way to keep a
+    // plugin open) would lose every unsaved edit. Saving them is the lesser surprise; the wait is bounded so exit never hangs.
+    private void SaveUnsavedDocumentsBeforeTeardown()
+    {
+        if (_closeConfirmed || UnsavedDocumentTitles.Count == 0) return;
+        try
+        {
+            var save = SaveAllDocumentsAsync();
+            if (UiDispatchHelper.HasLiveUiLifetime && Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+            {
+                // The saves continue on this thread; let the dispatcher run them for a moment.
+                var frame = new Avalonia.Threading.DispatcherFrame();
+                void Stop()
+                {
+                    frame.Continue = false;
+                    Avalonia.Threading.Dispatcher.UIThread.Post(static () => { });
+                }
+
+                _ = save.ContinueWith(_ => Stop(), TaskScheduler.Default);
+                using var timeout = new Timer(_ => Stop(), null, TimeSpan.FromSeconds(3), Timeout.InfiniteTimeSpan);
+                if (!save.IsCompleted) Avalonia.Threading.Dispatcher.UIThread.PushFrame(frame);
+            }
+            else
+            {
+                save.Wait(TimeSpan.FromSeconds(3));
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CSharpStudioHost] Couldn't save the open documents on close: {ex.Message}");
+        }
+    }
+
     /// <summary>Writes every pending preference change now (the studio or the window closing).</summary>
     public void FlushSettings()
     {
@@ -512,6 +613,7 @@ public partial class CSharpStudioHostViewModel : ObservableObject, IDisposable
     {
         if (ActiveInstance == this) ActiveInstance = null;
         FlushSettings();
+        SaveUnsavedDocumentsBeforeTeardown();
         DocsViewModel.Dispose();
         Activity.Dispose();
         (_storageService as IDisposable)?.Dispose();

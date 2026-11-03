@@ -202,8 +202,10 @@ public partial class FryServerStudioViewModel : ObservableObject, IDisposable
         Action? backToHomeAction = null,
         IFryServerRegistry? registry = null,
         Action<ScriptDocumentItem>? openScriptAction = null,
-        Action<NotebookDocumentItem>? openNotebookAction = null)
+        Action<NotebookDocumentItem>? openNotebookAction = null,
+        PdfEditorApp.Plugins.CSharpEditor.Services.Common.IStudioDialogService? dialogs = null)
     {
+        _dialogs = dialogs;
         _portService = portService ?? new PortAvailabilityService();
         _registry = registry ?? FryServerRegistry.Shared;
         _storageService = storageService;
@@ -380,13 +382,16 @@ public partial class FryServerStudioViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ToggleServerInfo() => IsServerInfoExpanded = !IsServerInfoExpanded;
 
+    // Asks before something is deleted for good (null: nobody to ask).
+    private readonly PdfEditorApp.Plugins.CSharpEditor.Services.Common.IStudioDialogService? _dialogs;
+
     private StudioWorkspaceExplorer CreateExplorer(IScriptStorageService storage)
     {
         var explorer = new StudioWorkspaceExplorer(storage, OpenFromExplorerAsync, async folder =>
         {
             var created = await storage.CreateNewServerDocumentAsync("New Server", folder);
             return created.Id;
-        });
+        }, dialogs: _dialogs);
 
         // The open server document's file was renamed or deleted from the Explorer.
         explorer.DocumentRenamed += (id, fileName) =>
@@ -471,6 +476,20 @@ public partial class FryServerStudioViewModel : ObservableObject, IDisposable
     {
         if (_storageService == null || Document == null) return;
         await _storageService.SaveServerDocumentAsync(Document);
+    }
+
+    /// <summary>
+    /// Save As: writes this server document to <paramref name="filePath"/> as a document of its own and shows it. A server
+    /// that is running keeps running under the document it was started from.
+    /// </summary>
+    public async Task<bool> SaveDocumentAsAsync(string filePath)
+    {
+        if (_storageService == null || Document == null) return false;
+        var copy = System.Text.Json.JsonSerializer.Deserialize<FryServerDocumentItem>(System.Text.Json.JsonSerializer.Serialize(Document))!;
+        var written = await _storageService.SaveServerDocumentAsAsync(copy, filePath);
+        if (written == null) return false;
+        LoadDocument(copy, written);
+        return true;
     }
 
     [RelayCommand]

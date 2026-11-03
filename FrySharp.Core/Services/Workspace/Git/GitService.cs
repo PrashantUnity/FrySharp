@@ -128,7 +128,7 @@ public sealed class GitService : IGitService
         return res;
     }
 
-    public async Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, CancellationToken ct = default)
+    public async Task<GitCommandResult> DiscardAllChangesAsync(string workspaceRoot, bool includeUntracked = true, CancellationToken ct = default)
     {
         var res = await RunGitAsync(workspaceRoot, ["restore", "."], DefaultTimeout, ct);
         if (!res.Success)
@@ -136,10 +136,10 @@ public sealed class GitService : IGitService
             res = await RunGitAsync(workspaceRoot, ["checkout", "."], DefaultTimeout, ct);
         }
 
-        if (res.Success)
+        if (res.Success && includeUntracked)
         {
-            // Clean untracked files as well
-            await RunGitAsync(workspaceRoot, ["clean", "-f", "-d"], DefaultTimeout, ct);
+            // Untracked files are deleted for good: only when the caller asked the user about them separately.
+            res = await RunGitAsync(workspaceRoot, ["clean", "-f", "-d"], DefaultTimeout, ct);
         }
 
         return res;
@@ -157,7 +157,7 @@ public sealed class GitService : IGitService
 
     public async Task<IReadOnlyList<GitBranchItem>> GetBranchesAsync(string workspaceRoot, CancellationToken ct = default)
     {
-        var res = await RunGitAsync(workspaceRoot, ["branch", "-a", "--format=%(HEAD)|%(refname:short)|%(upstream:short)"], DefaultTimeout, ct);
+        var res = await RunGitAsync(workspaceRoot, ["branch", "-a", "--format=%(HEAD)|%(refname:short)|%(upstream:short)|%(refname)"], DefaultTimeout, ct);
         if (!res.Success || string.IsNullOrWhiteSpace(res.Output))
         {
             return Array.Empty<GitBranchItem>();
@@ -174,7 +174,12 @@ public sealed class GitService : IGitService
             bool isCurrent = parts[0].Trim() == "*";
             string name = parts[1].Trim();
             string? upstream = parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]) ? parts[2].Trim() : null;
-            bool isRemote = name.StartsWith("origin/", StringComparison.OrdinalIgnoreCase);
+            string fullRef = parts.Length > 3 ? parts[3].Trim() : string.Empty;
+            // Any remote's branches, not only origin's; "origin/HEAD" only points at another branch.
+            bool isRemote = fullRef.Length > 0
+                ? fullRef.StartsWith("refs/remotes/", StringComparison.Ordinal)
+                : name.StartsWith("origin/", StringComparison.OrdinalIgnoreCase);
+            if (isRemote && fullRef.EndsWith("/HEAD", StringComparison.Ordinal)) continue;
 
             branches.Add(new GitBranchItem(name, isCurrent, isRemote, upstream));
         }
@@ -240,11 +245,14 @@ public sealed class GitService : IGitService
         TimeSpan timeout,
         CancellationToken ct)
     {
-        var fullArgs = new List<string>(args.Count + 3)
+        var fullArgs = new List<string>(args.Count + 5)
         {
             "-C",
             workspaceRoot,
-            "--no-optional-locks"
+            "--no-optional-locks",
+            // Non-ASCII names as they are (UTF-8), not as octal escapes.
+            "-c",
+            "core.quotePath=false"
         };
         fullArgs.AddRange(args);
 

@@ -9,10 +9,6 @@
              mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="380"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Visualizers.Controls.InteractiveVisualizerControl">
 
-    <UserControl.Styles>
-        <StyleInclude Source="avares://CSharpEditorPlugin/Styles/StudioStyles.axaml" />
-    </UserControl.Styles>
-
     <Grid>
         <visuals:VisualChromeControl x:Name="Chrome" />
 

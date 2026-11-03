@@ -9,6 +9,7 @@
              xmlns:hub="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.Hub"
              xmlns:common="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:hub1="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Controls.Hub"
+             xmlns:explorer="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer"
              mc:Ignorable="d"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Hub.HubWorkspacesPanelControl"
              x:DataType="hub:CSharpManagerViewModel">
@@ -164,7 +165,7 @@
                     ClipToBounds="True" lt:Tokens.BoxShadow="DsCardShadow">
                 <StackPanel>
                     <!-- Empty State -->
-                    <Border IsVisible="{Binding !HasFilteredWorkspaces}" Padding="32,48">
+                    <Border IsVisible="{Binding ShowRecentEmptyState}" Padding="32,48">
                         <StackPanel HorizontalAlignment="Center" lt:Tokens.Spacing="DsSpace12">
                             <Border Width="52" Height="52" CornerRadius="26" Background="{DynamicResource DsSurfaceHoverBrush}" HorizontalAlignment="Center">
                                 <materialIcons:MaterialIcon Kind="FolderSearchOutline" Width="26" Height="26" Foreground="{DynamicResource DsMutedBrush}"
@@ -209,7 +210,7 @@
                     </Border>
 
                     <!-- Rider-Style Project Items List -->
-                    <ItemsControl ItemsSource="{Binding FilteredWorkspaces}" IsVisible="{Binding HasFilteredWorkspaces}">
+                    <ItemsControl ItemsSource="{Binding FilteredWorkspaces}" IsVisible="{Binding ShowRecentWorkspaces}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Spacing="0" />
@@ -366,6 +367,49 @@
                             </DataTemplate>
                         </ItemsControl.DataTemplates>
                     </ItemsControl>
+
+                    <!-- The library's own documents of one kind (Scripts, Notebooks, API Servers, Pinned): what the side bar's
+                         counts count. Light rows, the first 100, the rest one "Show more" away (searching covers them all). -->
+                    <StackPanel IsVisible="{Binding IsLibraryListVisible}">
+                        <TextBlock Text="Nothing of this kind in the library yet" IsVisible="{Binding !HasFilteredItems}"
+                                   Margin="32,40" HorizontalAlignment="Center"
+                                   lt:Tokens.FontSize="DsFontSize300" Foreground="{DynamicResource DsMutedBrush}" />
+                        <ItemsControl ItemsSource="{Binding FilteredItems}">
+                            <ItemsControl.DataTemplates>
+                                <DataTemplate x:DataType="models:WorkspaceItemSummary">
+                                    <Button Command="{Binding $parent[UserControl].((hub:CSharpManagerViewModel)DataContext).OpenItemCommand}"
+                                            CommandParameter="{Binding}"
+                                            Classes="nexus-card-btn"
+                                            ToolTip.Tip="{Binding DisplayLocationTooltip}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="18,10">
+                                            <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind}" Width="18" Height="18" VerticalAlignment="Center"
+                                                                        Foreground="{Binding IconForeground, Converter={x:Static common:HexToBrushConverter.Instance}}" />
+                                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                                                           lt:Tokens.FontSize="DsFontSize300" lt:Tokens.FontWeight="DsWeightEmphasis"
+                                                           Foreground="{DynamicResource DsTextWhiteBrush}" />
+                                                <TextBlock Text="{Binding DisplayLocation}" TextTrimming="CharacterEllipsis"
+                                                           lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding KindLabel}" VerticalAlignment="Center"
+                                                       lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                                <DataTemplate x:DataType="explorer:WorkspaceGroupHeaderViewModel">
+                                    <StackPanel Margin="18,12,18,6">
+                                        <TextBlock Text="{Binding Title}" lt:Tokens.FontSize="DsFontSize200" lt:Tokens.FontWeight="DsWeightStrong"
+                                                   Foreground="{DynamicResource DsTextWhiteBrush}" />
+                                        <TextBlock Text="{Binding SubtitleText}" lt:Tokens.FontSize="DsFontSize150" Foreground="{DynamicResource DsMutedBrush}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.DataTemplates>
+                        </ItemsControl>
+                        <Button Command="{Binding ShowMoreItemsCommand}" IsVisible="{Binding HasHiddenItems}"
+                                Classes="nexus-btn-surface" HorizontalAlignment="Center" Margin="0,8,0,14">
+                            <TextBlock Text="{Binding HiddenItemsText}" />
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

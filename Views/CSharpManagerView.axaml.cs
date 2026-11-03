@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels;
 using CSharpManagerViewModel = PdfEditorApp.Plugins.CSharpEditor.ViewModels.Hub.CSharpManagerViewModel;
 
@@ -26,6 +27,12 @@ public partial class CSharpManagerView : UserControl
             {
                 _ = HubFilePickerActions.OpenProjectFileAsync(this, vm);
             }
+        }
+        else if ((e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) && e.Key == Key.K)
+        {
+            // The search box's badge promises this shortcut.
+            e.Handled = true;
+            this.FindDescendantOfType<PdfEditorApp.Plugins.CSharpEditor.Controls.Hub.HubTopHeaderControl>()?.FocusSearch();
         }
         else if ((e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)) && (e.Key == Key.OemComma || e.Key == Key.Oem1))
         {

@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:iconconv="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PdfEditorApp.Plugins.CSharpEditor.ViewModels"
@@ -21,10 +22,6 @@
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Views.CSharpCodeStudioView"
              x:DataType="codeStudio:CSharpCodeStudioViewModel">
 
-
-    <UserControl.Styles>
-        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
-    </UserControl.Styles>
 
     <Grid RowDefinitions="*,Auto" Background="{DynamicResource DsBgBrush}">
         <!-- ============================================================ -->
@@ -134,40 +131,40 @@
                             <!-- Source Control Tools (View 6) -->
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center"
                                         IsVisible="{Binding IsSourceControlActive}">
-                                <Button Command="{Binding RefreshGitStatusCommand}" Classes="explorer-tool-btn" ToolTip.Tip="Refresh (Check for changes)">
+                                <Button Command="{Binding Git.RefreshGitStatusCommand}" Classes="explorer-tool-btn" ToolTip.Tip="Refresh (Check for changes)">
                                     <materialIcons:MaterialIcon Kind="Refresh" Width="13" Height="13" Foreground="{DynamicResource DsMutedBrush}" />
                                 </Button>
                                 <Button Classes="explorer-tool-btn" ToolTip.Tip="More Actions...">
                                     <Button.Flyout>
                                         <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                            <MenuItem Header="Sync Changes" Command="{Binding SyncChangesCommand}">
+                                            <MenuItem Header="Sync Changes" Command="{Binding Git.SyncChangesCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="Sync" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
-                                            <MenuItem Header="Commit All Changes" Command="{Binding CommitCommand}">
+                                            <MenuItem Header="Commit All Changes" Command="{Binding Git.CommitCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="Check" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
-                                            <MenuItem Header="Stage All Changes" Command="{Binding StageAllCommand}">
+                                            <MenuItem Header="Stage All Changes" Command="{Binding Git.StageAllCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="Plus" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
-                                            <MenuItem Header="Unstage All Changes" Command="{Binding UnstageAllCommand}">
+                                            <MenuItem Header="Unstage All Changes" Command="{Binding Git.UnstageAllCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="Minus" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator />
-                                            <MenuItem Header="Discard All Changes" Command="{Binding DiscardAllChangesCommand}">
+                                            <MenuItem Header="Discard All Changes" Command="{Binding Git.DiscardAllChangesCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="Undo" Width="14" Height="14" Foreground="{DynamicResource DsErrorBrush}" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator />
-                                            <MenuItem Header="Initialize Repository" Command="{Binding InitGitRepositoryCommand}">
+                                            <MenuItem Header="Initialize Repository" Command="{Binding Git.InitGitRepositoryCommand}">
                                                 <MenuItem.Icon>
                                                     <materialIcons:MaterialIcon Kind="SourceBranchPlus" Width="14" Height="14" />
                                                 </MenuItem.Icon>
@@ -415,7 +412,7 @@
                                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                     Padding="4" Cursor="Hand">
                                                 <Grid ColumnDefinitions="Auto,*">
-                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding SeverityIconKind}" Foreground="{Binding SeverityColorHex}" Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Top" />
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding SeverityIconKind, Converter={x:Static iconconv:IconKindConverter.Instance}}" Foreground="{Binding SeverityColorHex}" Width="15" Height="15" Margin="0,0,6,0" VerticalAlignment="Top" />
                                                     <StackPanel Grid.Column="1" Spacing="2">
                                                         <TextBlock Text="{Binding Message}" lt:Tokens.FontSize="DsFontSize200" Foreground="{DynamicResource DsTextWhiteBrush}" TextWrapping="Wrap" />
                                                         <TextBlock Text="{Binding LocationString}" lt:Tokens.FontSize="DsFontSize075" Foreground="{DynamicResource DsMutedBrush}" />
@@ -429,7 +426,7 @@
                         </ScrollViewer>
 
                         <!-- Page 6: Source Control (Git) -->
-                        <studio:StudioSourceControlPanelControl />
+                        <studio:StudioSourceControlPanelControl DataContext="{Binding Git}" />
 
                     </Carousel>
                 </Grid>
@@ -545,7 +542,7 @@
                                     IsVisible="{Binding HasPreviewMode}"
                                     ToolTip.Tip="{Binding DocumentPreviewModeTooltip}">
                                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <materialIcons:MaterialIcon Kind="{Binding DocumentPreviewToggleIconKind}" Width="13" Height="13" Foreground="{DynamicResource DsPrimaryBrush}" VerticalAlignment="Center" />
+                                    <materialIcons:MaterialIcon Kind="{Binding DocumentPreviewToggleIconKind, Converter={x:Static iconconv:IconKindConverter.Instance}}" Width="13" Height="13" Foreground="{DynamicResource DsPrimaryBrush}" VerticalAlignment="Center" />
                                     <TextBlock Text="{Binding DocumentPreviewToggleText}" lt:Tokens.FontSize="DsFontSize200" lt:Tokens.FontWeight="DsWeightEmphasis" Foreground="{DynamicResource DsTextWhiteBrush}" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
@@ -637,6 +634,23 @@
 
                         <!-- Authentic VS Code Git Diff Viewer Surface -->
                         <studio:StudioDiffViewerControl IsVisible="{Binding ShowDiffViewer}" />
+
+                        <!-- The open document's file changed on disk while it had unsaved edits: say so, offer both ways out -->
+                        <Border IsVisible="{Binding HasChangedOnDiskNotice}" VerticalAlignment="Top" Margin="12,8,24,0" Padding="12,8"
+                                Background="{DynamicResource M3SurfaceContainerBrush}"
+                                BorderBrush="{DynamicResource DsWarningBrush}" lt:Tokens.BorderThickness="DsBorderThin"
+                                lt:Tokens.CornerRadius="DsRadiusMD" lt:Tokens.BoxShadow="DsModalShadow">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <materialIcons:MaterialIcon Grid.Column="0" Kind="FileAlertOutline" Width="16" Height="16"
+                                                            Foreground="{DynamicResource DsWarningBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding ChangedOnDiskNotice}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                           lt:Tokens.FontSize="DsFontSize200" Foreground="{DynamicResource DsTextWhiteBrush}" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <Button Content="Reload" Command="{Binding ReloadFromDiskCommand}" Classes="git-row-btn" Padding="10,4" />
+                                    <Button Content="Keep Mine" Command="{Binding KeepMyVersionCommand}" Classes="git-row-btn" Padding="10,4" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
                         <!-- Live Debug Hover Data Tip Card -->
                         <editor:DebugHoverDataTipControl Name="DebugHoverTip"

@@ -58,16 +58,14 @@ public partial class MainWindow : Window
             }
             else
             {
-                var lang = StudioHostVm.Languages.Registry.FindByExtension(path);
-                var doc = new ScriptDocumentItem
+                // Through the storage, like a file opened from the Explorer: sized and sniffed first, so a huge or binary
+                // file is described instead of read whole.
+                var storage = StudioHostVm.StorageService;
+                var opened = await storage.OpenExternalProjectAsync(path);
+                if (opened.Success && opened.PrimaryDocumentId is { } id && await storage.LoadScriptAsync(id) is { } doc)
                 {
-                    Id = ScriptStorageIdHelper.SourceFileId(path),
-                    Title = Path.GetFileName(path),
-                    SourceFilePath = path,
-                    LanguageId = lang?.Id ?? "csharp",
-                    Code = File.Exists(path) ? await File.ReadAllTextAsync(path) : string.Empty
-                };
-                StudioHostVm.NavigateToCodeStudio(doc);
+                    StudioHostVm.NavigateToCodeStudio(doc);
+                }
             }
         }
     }
@@ -97,16 +95,17 @@ public partial class MainWindow : Window
         if (ActiveCodeStudio is { } code)
         {
             var ext = Path.GetExtension(code.Script?.SourceFilePath ?? ".csx");
-            if (string.IsNullOrEmpty(ext)) ext = ".csx";
+            if (string.IsNullOrEmpty(ext) || ext.Equals(".frycs", StringComparison.OrdinalIgnoreCase)) ext = ".csx";
+            var title = code.Script?.Title ?? "Script";
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
                 Title = "Save Script As",
                 DefaultExtension = ext,
-                SuggestedFileName = code.Script?.Title ?? "Script" + ext
+                SuggestedFileName = title.EndsWith(ext, StringComparison.OrdinalIgnoreCase) ? title : title + ext
             });
             if (file?.TryGetLocalPath() is { } path)
             {
-                await File.WriteAllTextAsync(path, code.Code);
+                await code.SaveAsAsync(path);
             }
         }
         else if (ActiveNotebookStudio is { } nb && nb.ActiveTab?.Notebook is { } notebook)
@@ -115,21 +114,20 @@ public partial class MainWindow : Window
             {
                 Title = "Save Notebook As",
                 DefaultExtension = ".ipynb",
-                SuggestedFileName = notebook.Title + ".ipynb",
+                SuggestedFileName = Path.GetFileNameWithoutExtension(notebook.Title) + ".ipynb",
                 FileTypeChoices = new[]
                 {
                     new FilePickerFileType("Jupyter Notebook (*.ipynb)") { Patterns = new[] { "*.ipynb" } },
+                    new FilePickerFileType("FrySharp Notebook (*.frynb)") { Patterns = new[] { "*.frynb" } },
                     new FilePickerFileType("C# Notebook (*.csnb)") { Patterns = new[] { "*.csnb" } }
                 }
             });
             if (file?.TryGetLocalPath() is { } path)
             {
-                if (nb.ActiveTab != null) nb.ActiveTab.FilePath = path;
-                await StudioHostVm.StorageService.SaveNotebookAsync(notebook, path);
-                if (nb.ActiveTab != null) nb.ActiveTab.IsModified = false;
+                await nb.SaveActiveNotebookAsAsync(path);
             }
         }
-        else if (ActiveServerStudio is { } srv && srv.Document is { } srvDoc)
+        else if (ActiveServerStudio is { } srv && srv.Document != null)
         {
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
@@ -139,17 +137,16 @@ public partial class MainWindow : Window
             });
             if (file?.TryGetLocalPath() is { } path)
             {
-                srv.FilePath = path;
-                await StudioHostVm.StorageService.SaveServerDocumentAsync(srvDoc);
+                await srv.SaveDocumentAsAsync(path);
             }
         }
     }
 
+    // Every open script and notebook with unsaved edits, whichever page is showing (and the open API server).
     public async void SaveAll_OnClick(object? sender, EventArgs e)
     {
-        if (ActiveCodeStudio is { } code) await code.SaveCommand.ExecuteAsync(null);
-        else if (ActiveNotebookStudio is { } nb) await nb.SaveAsync();
-        else if (ActiveServerStudio is { } srv) await srv.SaveDocumentAsync();
+        await StudioHostVm.SaveAllDocumentsAsync();
+        if (ActiveServerStudio is { } srv) await srv.SaveDocumentAsync();
     }
 
     public async void CloseTab_OnClick(object? sender, EventArgs e)
@@ -244,7 +241,8 @@ public partial class MainWindow : Window
     }
 
     public void Replace_OnClick(object? sender, EventArgs e) => ActiveCodeStudio?.ToggleSearch();
-    public void FindInFiles_OnClick(object? sender, EventArgs e) => ActiveCodeStudio?.SelectActivityBarItem(1);
+    // The same as View › Search, which carries the shortcut (one key can only have one menu item).
+    public void FindInFiles_OnClick(object? sender, EventArgs e) => ViewSearch_OnClick(sender, e);
 
     public void FormatDocument_OnClick(object? sender, EventArgs e)
     {

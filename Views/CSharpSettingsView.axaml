@@ -1,5 +1,6 @@
 <UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:common="using:PdfEditorApp.Plugins.CSharpEditor.Controls.Common"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
@@ -137,7 +138,7 @@
                                                     Classes.active="{Binding IsSelected}"
                                                     Margin="0,1">
                                                 <Grid ColumnDefinitions="Auto,*,Auto">
-                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind}" Width="16" Height="16" Foreground="{Binding AccentHex}" VerticalAlignment="Center" />
+                                                    <materialIcons:MaterialIcon Grid.Column="0" Kind="{Binding IconKind, Converter={x:Static common:IconKindConverter.Instance}}" Width="16" Height="16" Foreground="{Binding AccentHex}" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Text="{Binding DisplayName}" lt:Tokens.FontSize="DsFontSize300" Margin="8,0,0,0" VerticalAlignment="Center" />
                                                     <Ellipse Grid.Column="2" Width="6" Height="6" Fill="{Binding StatusColor}" VerticalAlignment="Center" />
                                                 </Grid>

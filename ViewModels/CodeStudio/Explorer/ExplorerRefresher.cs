@@ -35,12 +35,14 @@ public sealed class ExplorerRefresher(IScriptStorageService storage, IActivitySe
     public bool IsCurrent => Interlocked.Read(ref _listedVersion) == storage.StructureVersion;
 
     /// <summary>Lists the workspace now and draws it, whether or not it changed.</summary>
-    public Task RefreshAsync()
+    public Task RefreshAsync() => StartListing(reuseCurrent: false);
+
+    private Task StartListing(bool reuseCurrent)
     {
         long generation;
         lock (_gate) generation = ++_generation;
 
-        var listing = ListAsync(generation);
+        var listing = ListAsync(generation, reuseCurrent);
         lock (_gate)
         {
             if (generation == _generation) _running = listing;
@@ -56,18 +58,19 @@ public sealed class ExplorerRefresher(IScriptStorageService storage, IActivitySe
         await running;
 
         if (IsCurrent) return false;
-        await RefreshAsync();
+        // Stale only because this tree is behind: a listing the other studio just made of the same workspace will do.
+        await StartListing(reuseCurrent: true);
         return true;
     }
 
-    private async Task ListAsync(long generation)
+    private async Task ListAsync(long generation, bool reuseCurrent)
     {
         using var activity = activities.Start(new ActivityOptions("Listing the workspace", ActivityLocation.Explorer));
         try
         {
             // Taken before the walk: a change that lands while it runs leaves the tree stale, so the next check lists again.
             var version = storage.StructureVersion;
-            var listing = await storage.LoadExplorerListingAsync();
+            var listing = await storage.LoadExplorerListingAsync(reuseCurrent);
             lock (_gate)
             {
                 if (generation != _generation) return;

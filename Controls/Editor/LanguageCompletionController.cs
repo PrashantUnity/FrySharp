@@ -200,14 +200,19 @@ public sealed class LanguageCompletionController : IDisposable
                         MaxWidth = 480
                     };
 
-                    try
+                    // The popup is a root of its own: it has the editor's theme when the application has the studio's styles
+                    // (the Runner); otherwise (FryPDF) it brings it.
+                    if (!PdfEditorApp.Plugins.CSharpEditor.Controls.Common.StudioStyleSheet.ApplicationHasIt)
                     {
-                        _completionWindow.Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://CSharpEditorPlugin/"))
+                        try
                         {
-                            Source = new Uri("avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml")
-                        });
+                            _completionWindow.Styles.Add(new Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://CSharpEditorPlugin/"))
+                            {
+                                Source = new Uri("avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml")
+                            });
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     bool isDark = ThemeService.IsDark;
                     _completionWindow.CompletionList.Background = new SolidColorBrush(Color.Parse(isDark ? "#14171F" : "#FFFFFF"));

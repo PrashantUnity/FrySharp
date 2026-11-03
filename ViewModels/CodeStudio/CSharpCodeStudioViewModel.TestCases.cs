@@ -77,6 +77,11 @@ public partial class CSharpCodeStudioViewModel
     private void OnTestCaseChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TestCaseItem.Passed)) OnPropertyChanged(nameof(TestCasesSummary));
+        // What the user wrote is an edit; what a run filled in (result, output, running) is not.
+        if (e.PropertyName is nameof(TestCaseItem.Name) or nameof(TestCaseItem.Input) or nameof(TestCaseItem.ExpectedOutput) or nameof(TestCaseItem.Call))
+        {
+            MarkActiveDocumentEdited();
+        }
     }
 
     partial void OnScriptChanged(ScriptDocumentItem value)
@@ -173,6 +178,7 @@ public partial class CSharpCodeStudioViewModel
         testCase.PropertyChanged -= OnTestCaseChanged;
         TestCases.Remove(testCase);
         Script.TestCases.Remove(testCase);
+        MarkActiveDocumentEdited();
         TestCasesStatus = null;
     }
 
@@ -245,6 +251,7 @@ public partial class CSharpCodeStudioViewModel
     {
         TestCases.Add(testCase);
         Script.TestCases.Add(testCase);
+        MarkActiveDocumentEdited();
     }
 
     // Code changed here, not in the editor: show it there too.

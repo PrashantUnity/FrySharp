@@ -99,6 +99,39 @@ public sealed class InProcessCSharpRunnerTests
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(30), $"took {clock.Elapsed}");
     }
 
+    [Theory]
+    [InlineData("Console.WriteLine(\"started\");\nlong n = 0;\nwhile (true) { n++; }")]
+    [InlineData("Console.WriteLine(\"started\");\nfor (var i = 0; ; i++) i--;")]
+    [InlineData("namespace Demo;\npublic static class P { public static void Main() { System.Console.WriteLine(\"started\"); while (true) { } } }")]
+    public async Task ALoopThatNeverLooksAtStop_StillEndsWhenStopped(string code)
+    {
+        using var stop = new CancellationTokenSource();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var (result, output, _) = await Headless.RunAsync(code, ct: stop.Token, observe: text =>
+        {
+            if (text.Contains("started")) stop.Cancel();
+        });
+
+        Assert.True(result.WasCancelled, output);
+        Assert.False(result.WasAbandoned, "the loop kept its thread after Stop");
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(30), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
+    public void InstrumentedLoops_KeepTheirLineNumbers_AndBrokenCodeIsLeftAlone()
+    {
+        const string code = "var x = 0;\nfor (int i = 0; i < 3; i++)\n{\n    x++;\n}\nwhile (x > 0)\n    x--;\nforeach (var c in \"ab\") { x++; }";
+
+        var instrumented = PdfEditorApp.Plugins.CSharpEditor.Services.Execution.LoopGuard.Instrument(code, Microsoft.CodeAnalysis.SourceCodeKind.Script);
+
+        Assert.Equal(code.Split('\n').Length, instrumented.Split('\n').Length);
+        Assert.Equal(3, instrumented.Split("LoopGuard.Tick()").Length - 1);
+        Assert.Contains("    x++;", instrumented.Split('\n')[3]);
+
+        const string broken = "while (true) { x++";
+        Assert.Equal(broken, PdfEditorApp.Plugins.CSharpEditor.Services.Execution.LoopGuard.Instrument(broken, Microsoft.CodeAnalysis.SourceCodeKind.Script));
+    }
+
     [Fact]
     public async Task UsingDeclarations_AreDisposedLastFirst_AndTheLastExpressionIsStillTheResult()
     {

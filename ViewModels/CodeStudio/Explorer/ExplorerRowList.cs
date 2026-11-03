@@ -6,6 +6,12 @@ using PdfEditorApp.Plugins.CSharpEditor.Services.Common;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer;
 
+/// <summary>Whatever an Explorer panel shows: its visible rows (keyboard navigation walks them).</summary>
+public interface IExplorerRowsHost
+{
+    ExplorerRowList ExplorerRows { get; }
+}
+
 /// <summary>
 /// The Explorer's visible rows as one flat list: every item of the tree, depth first, leaving out what a collapsed folder
 /// hides. It is what the Explorer binds to, so a virtualizing list only ever builds the rows on screen (a workspace with
@@ -107,7 +113,33 @@ public sealed class ExplorerRowList
         _dirty = false;
         var rows = new List<ExplorerItemViewModel>();
         Flatten(_roots, rows);
-        Rows.ReplaceAll(rows);
+        Apply(rows);
+    }
+
+    // The new rows replace the old ones only where they differ: the rows both lists start and end with stay, and so do
+    // the controls on screen for them (re-creating every visible row was most of an Explorer refresh's time). The same
+    // rows in the same order (a refresh of a workspace that didn't change) raise nothing.
+    private void Apply(List<ExplorerItemViewModel> rows)
+    {
+        var max = Math.Min(Rows.Count, rows.Count);
+        var prefix = 0;
+        while (prefix < max && ReferenceEquals(Rows[prefix], rows[prefix])) prefix++;
+        if (prefix == Rows.Count && prefix == rows.Count) return;
+
+        var suffix = 0;
+        while (suffix < max - prefix && ReferenceEquals(Rows[Rows.Count - 1 - suffix], rows[rows.Count - 1 - suffix])) suffix++;
+
+        // Nothing in common: one reset is cheaper than a removal and an insertion.
+        if (prefix == 0 && suffix == 0)
+        {
+            Rows.ReplaceAll(rows);
+            return;
+        }
+
+        var removed = Rows.Count - prefix - suffix;
+        var inserted = rows.Count - prefix - suffix;
+        if (removed > 0) Rows.RemoveRange(prefix, removed);
+        if (inserted > 0) Rows.InsertRange(prefix, rows.GetRange(prefix, inserted));
     }
 
     private static void Flatten(IEnumerable<ExplorerItemViewModel> items, List<ExplorerItemViewModel> into)

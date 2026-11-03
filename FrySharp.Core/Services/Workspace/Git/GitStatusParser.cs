@@ -274,12 +274,55 @@ public static class GitStatusParser
         _ => GitFileStatusKind.Modified
     };
 
-    private static string UnquotePath(string path)
+    /// <summary>
+    /// Reads a path as git prints it: plain, or in double quotes with C escapes when it has unusual characters. Git escapes
+    /// every byte of a non-ASCII name in octal ("caf\303\251.py" is café.py), so the escapes are bytes of UTF-8.
+    /// </summary>
+    internal static string UnquotePath(string path)
     {
-        if (path.StartsWith('"') && path.EndsWith('"') && path.Length >= 2)
+        if (path.Length < 2 || path[0] != '"' || path[^1] != '"') return path;
+
+        var bytes = new List<byte>(path.Length);
+        var run = new System.Text.StringBuilder();
+        void FlushRun()
         {
-            return path[1..^1].Replace("\\\"", "\"").Replace("\\\\", "\\");
+            if (run.Length == 0) return;
+            bytes.AddRange(System.Text.Encoding.UTF8.GetBytes(run.ToString()));
+            run.Clear();
         }
-        return path;
+
+        var end = path.Length - 1;
+        for (var i = 1; i < end; i++)
+        {
+            var c = path[i];
+            if (c != '\\' || i + 1 >= end)
+            {
+                run.Append(c);
+                continue;
+            }
+
+            FlushRun();
+            var n = path[++i];
+            switch (n)
+            {
+                case 'a': bytes.Add(7); break;
+                case 'b': bytes.Add(8); break;
+                case 't': bytes.Add(9); break;
+                case 'n': bytes.Add(10); break;
+                case 'v': bytes.Add(11); break;
+                case 'f': bytes.Add(12); break;
+                case 'r': bytes.Add(13); break;
+                case >= '0' and <= '7' when i + 2 < end && path[i + 1] is >= '0' and <= '7' && path[i + 2] is >= '0' and <= '7':
+                    bytes.Add((byte)(((n - '0') << 6) | ((path[i + 1] - '0') << 3) | (path[i + 2] - '0')));
+                    i += 2;
+                    break;
+                default:
+                    run.Append(n); // \" and \\ stand for themselves
+                    break;
+            }
+        }
+
+        FlushRun();
+        return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
     }
 }

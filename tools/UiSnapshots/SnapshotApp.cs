@@ -23,7 +23,6 @@ internal sealed class SnapshotApp : Application
         if (!pluginOnly) Resources.MergedDictionaries.Add(new ResourceInclude(baseUri) { Source = new Uri("avares://CSharpEditorPlugin/Styles/Tokens/StudioPaletteTokens.axaml") });
         Styles.Add(new FluentTheme());
         Styles.Add(new MaterialIconStyles(null));
-        Styles.Add(new StyleInclude(baseUri) { Source = new Uri("avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml") });
         if (!pluginOnly) Styles.Add(new StyleInclude(baseUri) { Source = new Uri("avares://CSharpEditorPlugin/Styles/StudioStyles.axaml") });
     }
 }

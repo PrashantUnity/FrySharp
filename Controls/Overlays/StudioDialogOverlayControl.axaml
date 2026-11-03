@@ -1,0 +1,105 @@
+<UserControl xmlns:lt="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.Theming.Layout;assembly=CSharpEditorPlugin" xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:common="clr-namespace:PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="PdfEditorApp.Plugins.CSharpEditor.Controls.Overlays.StudioDialogOverlayControl"
+             x:DataType="common:StudioDialogViewModel"
+             IsVisible="{Binding IsOpen}">
+
+    <UserControl.Styles>
+        <Style Selector="Button.dialog-btn">
+            <Setter Property="MinWidth" Value="88" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource DsSurfaceHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource M3OnSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DsBorderBrush}" />
+            <Setter Property="lt:Tokens.BorderThickness" Value="DsBorderThin" />
+            <Setter Property="lt:Tokens.CornerRadius" Value="DsRadiusMD" />
+            <Setter Property="lt:Tokens.FontSize" Value="DsFontSize300" />
+            <Setter Property="lt:Tokens.FontWeight" Value="DsWeightEmphasis" />
+        </Style>
+        <Style Selector="Button.dialog-btn.primary">
+            <Setter Property="Background" Value="{DynamicResource DsPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DsPrimaryHoverBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource DsOnAccentBrush}" />
+        </Style>
+        <Style Selector="Button.dialog-btn.destructive">
+            <Setter Property="Foreground" Value="{DynamicResource DsErrorBrush}" />
+        </Style>
+        <Style Selector="Button.dialog-btn:focus-visible /template/ ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource DsPrimaryBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- The scrim takes every click outside the card: the studio below waits for the answer. -->
+    <Grid Background="{DynamicResource DsScrimBrush}" PointerPressed="OnScrimPointerPressed">
+        <Border Width="460"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Center"
+                Background="{DynamicResource M3SurfaceContainerBrush}"
+                BorderBrush="{DynamicResource M3OutlineVariantBrush}"
+                lt:Tokens.BorderThickness="DsBorderThin"
+                lt:Tokens.CornerRadius="DsRadiusXL"
+                lt:Tokens.BoxShadow="DsModalShadow"
+                Padding="20,18,20,16"
+                PointerPressed="OnCardPointerPressed">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <materialIcons:MaterialIcon Grid.Column="0" Kind="AlertCircleOutline" Width="20" Height="20"
+                                                Foreground="{DynamicResource DsPrimaryBrush}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                    <SelectableTextBlock x:Name="TitleText" Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap"
+                                         lt:Tokens.FontSize="DsFontSize500" lt:Tokens.FontWeight="DsWeightStrong"
+                                         Foreground="{DynamicResource M3OnSurfaceBrush}" />
+                    <Button Grid.Column="2" Command="{Binding DismissCommand}" Classes="cell-tool-btn"
+                            Width="22" Height="22" Margin="8,-2,-6,0" VerticalAlignment="Top" ToolTip.Tip="Cancel (Escape)">
+                        <materialIcons:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="{DynamicResource M3OnSurfaceVariantBrush}" />
+                    </Button>
+                </Grid>
+
+                <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="30,0,0,0"
+                                     lt:Tokens.FontSize="DsFontSize300"
+                                     Foreground="{DynamicResource M3OnSurfaceVariantBrush}" />
+
+                <!-- The files the question is about: at most a few lines, the rest scrolls. -->
+                <Border IsVisible="{Binding HasDetails}" Margin="30,2,0,0" Padding="10,6"
+                        Background="{DynamicResource DsSurfaceHoverBrush}"
+                        lt:Tokens.CornerRadius="DsRadiusMD">
+                    <ScrollViewer MaxHeight="140" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Details}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" Margin="0,2"
+                                               lt:Tokens.FontSize="DsFontSize200" lt:Tokens.FontFamily="DsCodeFontFamily"
+                                               Foreground="{DynamicResource M3OnSurfaceBrush}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+
+                <ItemsControl x:Name="ChoiceButtons" ItemsSource="{Binding Choices}" HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="common:StudioDialogChoiceViewModel">
+                            <Button Classes="dialog-btn"
+                                    Classes.primary="{Binding IsPrimary}"
+                                    Classes.destructive="{Binding IsDestructive}"
+                                    Content="{Binding Label}"
+                                    Command="{Binding $parent[UserControl].((common:StudioDialogViewModel)DataContext).ChooseCommand}"
+                                    CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

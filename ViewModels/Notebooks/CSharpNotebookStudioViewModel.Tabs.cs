@@ -4,6 +4,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Input;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
 using PdfEditorApp.Plugins.CSharpEditor.Models.Server;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Activities;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Common;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Storage;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
@@ -26,10 +28,71 @@ public partial class CSharpNotebookStudioViewModel
         Services.Extensibility.StudioAppContext.Instance.HookRegistry.InvokeDocumentOpened(adapter);
     }
 
+    // ── Unsaved changes ──────────────────────────────────────────────────────
+
+    private static bool IsUnsaved(NotebookTabViewModel tab) => tab.IsModified;
+
+    /// <summary>The titles of the open notebooks with edits that aren't saved (closing the studio asks about them).</summary>
+    public IReadOnlyList<string> UnsavedDocumentTitles => Tabs.Where(IsUnsaved).Select(t => t.Title).ToList();
+
+    /// <summary>Saves every open notebook that has unsaved edits. False when one of them couldn't be saved.</summary>
+    public async Task<bool> SaveAllAsync()
+    {
+        var allSaved = true;
+        foreach (var tab in Tabs.Where(IsUnsaved).ToList())
+        {
+            allSaved &= await SaveTabAsync(tab);
+        }
+
+        return allSaved;
+    }
+
+    /// <summary>
+    /// Runs <paramref name="close"/> at once when none of <paramref name="closing"/> has unsaved edits (or there is nobody to
+    /// ask: tests, tools); otherwise asks first, and closes only after Save (and every save worked) or Don't Save.
+    /// </summary>
+    private void CloseWhenConfirmed(IEnumerable<NotebookTabViewModel> closing, Action close)
+    {
+        var unsaved = closing.Where(IsUnsaved).ToList();
+        if (unsaved.Count == 0)
+        {
+            close();
+            return;
+        }
+
+        PendingClose = ConfirmThenCloseAsync(unsaved, close);
+        PendingClose.FireAndForget(_activities, "Closing notebooks");
+    }
+
+    /// <summary>The close that is waiting for the unsaved-changes answer, or its saves (tests await it).</summary>
+    internal Task PendingClose { get; private set; } = Task.CompletedTask;
+
+    private async Task ConfirmThenCloseAsync(List<NotebookTabViewModel> unsaved, Action close)
+    {
+        var answer = await StudioQuestions.AskToSaveAsync(_dialogs, unsaved.Select(t => t.Title).ToList());
+        if (answer is not (null or StudioQuestions.DontSave or StudioQuestions.Save)) return;
+
+        if (answer == StudioQuestions.Save)
+        {
+            foreach (var tab in unsaved)
+            {
+                if (!await SaveTabAsync(tab)) return;
+            }
+        }
+
+        close();
+    }
+
     [RelayCommand]
     public void CloseTab(NotebookTabViewModel? tab)
     {
         if (tab == null) return;
+        CloseWhenConfirmed([tab], () => CloseTabNow(tab));
+    }
+
+    private void CloseTabNow(NotebookTabViewModel tab)
+    {
+        if (!Tabs.Contains(tab)) return;
 
         ReleaseTab(tab);
 
@@ -125,6 +188,8 @@ public partial class CSharpNotebookStudioViewModel
     /// <summary>A closed tab's cells let go of their live outputs, and its kernels in other programs end.</summary>
     private static void ReleaseTab(NotebookTabViewModel tab)
     {
+        // A cell still running would keep going with nothing left to show it.
+        tab.InterruptExecution();
         tab.DisposeAllCellResources();
         tab.ShutdownKernels();
     }
@@ -143,16 +208,19 @@ public partial class CSharpNotebookStudioViewModel
     {
         if (tab == null || Tabs.Count <= 1) return;
         var toRemove = Tabs.Where(t => t != tab).ToList();
-        foreach (var t in toRemove)
+        CloseWhenConfirmed(toRemove, () =>
         {
-            ReleaseTab(t);
-            Tabs.Remove(t);
-        }
-        if (ActiveTab != tab)
-        {
-            SelectTab(tab);
-        }
-        RefreshQuickOpenDocuments();
+            foreach (var t in toRemove)
+            {
+                ReleaseTab(t);
+                Tabs.Remove(t);
+            }
+            if (ActiveTab != tab)
+            {
+                SelectTab(tab);
+            }
+            RefreshQuickOpenDocuments();
+        });
     }
 
     [RelayCommand]
@@ -162,28 +230,34 @@ public partial class CSharpNotebookStudioViewModel
         int idx = Tabs.IndexOf(tab);
         if (idx < 0 || idx >= Tabs.Count - 1) return;
         var toRemove = Tabs.Skip(idx + 1).ToList();
-        foreach (var t in toRemove)
+        CloseWhenConfirmed(toRemove, () =>
         {
-            ReleaseTab(t);
-            Tabs.Remove(t);
-        }
-        if (ActiveTab != null && !Tabs.Contains(ActiveTab))
-        {
-            SelectTab(tab);
-        }
-        RefreshQuickOpenDocuments();
+            foreach (var t in toRemove)
+            {
+                ReleaseTab(t);
+                Tabs.Remove(t);
+            }
+            if (ActiveTab != null && !Tabs.Contains(ActiveTab))
+            {
+                SelectTab(tab);
+            }
+            RefreshQuickOpenDocuments();
+        });
     }
 
     [RelayCommand]
     public void CloseAllTabs()
     {
-        foreach (var t in Tabs)
+        CloseWhenConfirmed(Tabs.ToList(), () =>
         {
-            ReleaseTab(t);
-        }
-        Tabs.Clear();
-        _ = NewNotebookTab();
-        RefreshQuickOpenDocuments();
+            foreach (var t in Tabs)
+            {
+                ReleaseTab(t);
+            }
+            Tabs.Clear();
+            _ = NewNotebookTab();
+            RefreshQuickOpenDocuments();
+        });
     }
 
     public void CopyNotebookTabPath(NotebookTabViewModel? tab)

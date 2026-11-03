@@ -25,7 +25,8 @@
                 </Border>
 
                 <!-- Git Branch Pill with Branch Switcher Flyout -->
-                <Button Command="{Binding OpenBranchPickerCommand}"
+                <Button DataContext="{Binding Git}"
+                        Command="{Binding OpenBranchPickerCommand}"
                         Classes="status-item"
                         IsVisible="{Binding IsGitRepository}"
                         ToolTip.Tip="Checkout or switch Git Branch">
@@ -41,7 +42,8 @@
                 </Button>
 
                 <!-- Git Sync Pill -->
-                <Button Command="{Binding SyncChangesCommand}"
+                <Button DataContext="{Binding Git}"
+                        Command="{Binding SyncChangesCommand}"
                         Classes="status-item"
                         IsVisible="{Binding IsSyncButtonVisible}"
                         ToolTip.Tip="Synchronize changes with remote repository">

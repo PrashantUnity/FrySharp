@@ -79,15 +79,7 @@ public partial class StudioExplorerPanelControl : UserControl
     {
         if (e.Source is TextBox) return;
 
-        ExplorerRowList? rowsList = DataContext switch
-        {
-            PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.CSharpCodeStudioViewModel cs => cs.ExplorerRows,
-            PdfEditorApp.Plugins.CSharpEditor.ViewModels.Notebooks.CSharpNotebookStudioViewModel nb => nb.ExplorerRows,
-            StudioWorkspaceExplorer swe => swe.ExplorerRows,
-            _ => null
-        };
-
-        if (rowsList == null || rowsList.Rows.Count == 0) return;
+        if (DataContext is not IExplorerRowsHost { ExplorerRows: { } rowsList } || rowsList.Rows.Count == 0) return;
 
         var rows = rowsList.Rows;
         var selectedIndex = -1;
@@ -148,9 +140,22 @@ public partial class StudioExplorerPanelControl : UserControl
                 break;
 
             case Key.Enter:
-                if (current != null)
+                if (current is { IsConfirmingDelete: true })
+                {
+                    current.ConfirmDelete();
+                    e.Handled = true;
+                }
+                else if (current != null)
                 {
                     current.ToggleExpand();
+                    e.Handled = true;
+                }
+                break;
+
+            case Key.Escape:
+                if (current is { IsConfirmingDelete: true })
+                {
+                    current.CancelDelete();
                     e.Handled = true;
                 }
                 break;

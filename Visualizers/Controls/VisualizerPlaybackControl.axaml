@@ -7,10 +7,6 @@
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="75"
              x:Class="PdfEditorApp.Plugins.CSharpEditor.Visualizers.Controls.VisualizerPlaybackControl">
 
-    <UserControl.Styles>
-        <StyleInclude Source="avares://CSharpEditorPlugin/Styles/StudioStyles.axaml" />
-    </UserControl.Styles>
-
     <Grid RowDefinitions="Auto,Auto,Auto" Margin="0,4,0,0">
         <!-- 0. Watched collections (queue, stack, visited set...) as they were at this step -->
         <ItemsControl Grid.Row="0" Name="WatchList" IsVisible="False" Margin="0,0,0,6">

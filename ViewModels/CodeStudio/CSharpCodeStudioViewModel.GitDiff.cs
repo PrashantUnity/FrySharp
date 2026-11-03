@@ -49,8 +49,8 @@ public partial class CSharpCodeStudioViewModel
         try
         {
             // 1. Fetch git diff and file contents
-            var diffOutput = await GitService.GetFileDiffAsync(root, changeItem.RelativePath, changeItem.IsStaged);
-            var headContent = await GitService.GetFileHeadContentAsync(root, changeItem.RelativePath);
+            var diffOutput = await Git.GitService.GetFileDiffAsync(root, changeItem.RelativePath, changeItem.IsStaged);
+            var headContent = await Git.GitService.GetFileHeadContentAsync(root, changeItem.RelativePath);
 
             string? workingContent = null;
             if (File.Exists(fullPath))
@@ -97,7 +97,7 @@ public partial class CSharpCodeStudioViewModel
         }
         catch (Exception ex)
         {
-            GitStatusMessage = $"Diff error: {ex.Message}";
+            Git.GitStatusMessage = $"Diff error: {ex.Message}";
         }
     }
 
@@ -112,8 +112,8 @@ public partial class CSharpCodeStudioViewModel
     {
         if (ActiveDiffDocument == null || string.IsNullOrWhiteSpace(_storageService?.ActiveWorkspaceRootPath)) return;
         var root = _storageService.ActiveWorkspaceRootPath;
-        await GitService.StageFileAsync(root, ActiveDiffDocument.RelativePath);
-        await RefreshGitStatusAsync();
+        await Git.GitService.StageFileAsync(root, ActiveDiffDocument.RelativePath);
+        await Git.RefreshGitStatusAsync();
         await CloseActiveDiffTabAsync();
     }
 
@@ -122,8 +122,8 @@ public partial class CSharpCodeStudioViewModel
     {
         if (ActiveDiffDocument == null || string.IsNullOrWhiteSpace(_storageService?.ActiveWorkspaceRootPath)) return;
         var root = _storageService.ActiveWorkspaceRootPath;
-        await GitService.UnstageFileAsync(root, ActiveDiffDocument.RelativePath);
-        await RefreshGitStatusAsync();
+        await Git.GitService.UnstageFileAsync(root, ActiveDiffDocument.RelativePath);
+        await Git.RefreshGitStatusAsync();
         await CloseActiveDiffTabAsync();
     }
 
@@ -131,10 +131,18 @@ public partial class CSharpCodeStudioViewModel
     public async Task DiscardActiveDiffAsync()
     {
         if (ActiveDiffDocument == null || string.IsNullOrWhiteSpace(_storageService?.ActiveWorkspaceRootPath)) return;
+        var fileName = Path.GetFileName(ActiveDiffDocument.RelativePath);
+        if (!await Services.Common.StudioQuestions.ConfirmAsync(_dialogs, $"Discard changes to {fileName}?",
+                "Its changes since the last commit will be lost. This can't be undone.", "Discard Changes"))
+        {
+            return;
+        }
+
         var root = _storageService.ActiveWorkspaceRootPath;
-        await GitService.DiscardFileChangesAsync(root, ActiveDiffDocument.RelativePath, isUntracked: false);
-        await RefreshGitStatusAsync();
+        await Git.GitService.DiscardFileChangesAsync(root, ActiveDiffDocument.RelativePath, isUntracked: false);
+        await Git.RefreshGitStatusAsync();
         await CloseActiveDiffTabAsync();
+        await ReloadChangedDocumentsAsync(null);
     }
 
     [RelayCommand]

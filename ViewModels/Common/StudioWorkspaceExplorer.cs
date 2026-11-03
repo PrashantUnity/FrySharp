@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Activities;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Common;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Storage;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Workspace;
 using PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer;
@@ -18,7 +19,7 @@ namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 /// duplicating, deleting and copying paths work on the disk through the storage. Bound to
 /// <c>StudioExplorerPanelControl</c> (the Server Studio's Explorer).
 /// </summary>
-public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplorerNewFileHost
+public sealed partial class StudioWorkspaceExplorer : ObservableObject, PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio.Explorer.IExplorerRowsHost, IExplorerNewFileHost
 {
     private readonly IScriptStorageService _storage;
     private readonly Func<ExplorerItemViewModel, Task> _open;
@@ -31,15 +32,19 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
     /// <param name="open">Opens a file the user picked (the studio decides where).</param>
     /// <param name="createDocument">Creates the studio's own kind of document in a folder (path from the root, null for the top) and returns its id.</param>
     /// <param name="activities">Where a slow listing shows and a failed one is reported.</param>
+    /// <param name="dialogs">Asks before something is deleted for good.</param>
     public StudioWorkspaceExplorer(IScriptStorageService storage, Func<ExplorerItemViewModel, Task> open, Func<string?, Task<string?>> createDocument,
-        IActivityService? activities = null)
+        IActivityService? activities = null, IStudioDialogService? dialogs = null)
     {
         _storage = storage;
+        _dialogs = dialogs ?? NullStudioDialogService.Instance;
         _open = open;
         _createDocument = createDocument;
         ExplorerRows = new ExplorerRowList(ExplorerRootItems);
         _refresh = new ExplorerRefresher(storage, activities ?? NullActivityService.Instance, Show);
     }
+
+    private readonly IStudioDialogService _dialogs;
 
     public ObservableCollection<ExplorerItemViewModel> ExplorerRootItems { get; } = new();
 
@@ -101,6 +106,8 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
     private void Build(WorkspaceListing listing, HashSet<string> open)
     {
         using var scope = ExplorerRows.Suspend();
+        // The items still there come back as they were: only the rows of what changed are redrawn.
+        var reuse = new ExplorerItemReuse(ExplorerRootItems);
         ExplorerRootItems.Clear();
         var folders = new Dictionary<string, ExplorerItemViewModel>(StringComparer.OrdinalIgnoreCase);
 
@@ -110,7 +117,7 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
             if (folders.TryGetValue(path, out var existing)) return existing;
             var slash = path.LastIndexOf('/');
             var parent = FolderAt(slash >= 0 ? path[..slash] : string.Empty);
-            var folder = Folder(path[(slash + 1)..], path, parent, open.Contains(path));
+            var folder = reuse.Folder(path, parent, () => Folder(path[(slash + 1)..], path, parent, open.Contains(path)));
             (parent?.Children ?? ExplorerRootItems).Add(folder);
             folders[path] = folder;
             return folder;
@@ -128,7 +135,8 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
         {
             var parent = FolderAt(summary.FolderPath);
             var name = summary.ExplorerName;
-            (parent?.Children ?? ExplorerRootItems).Add(File(summary, name, parent == null ? name : $"{parent.FullPath}/{name}", parent));
+            var path = parent == null ? name : $"{parent.FullPath}/{name}";
+            (parent?.Children ?? ExplorerRootItems).Add(reuse.File(path, summary.Id, name, parent, () => File(summary, name, path, parent)));
         }
 
         Sort(ExplorerRootItems);
@@ -243,35 +251,7 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
 
     private Task RevealInFileManagerAsync(ExplorerItemViewModel item)
     {
-        var fullPath = AbsolutePath(item);
-        if (string.IsNullOrWhiteSpace(fullPath) || (!System.IO.File.Exists(fullPath) && !System.IO.Directory.Exists(fullPath))) return Task.CompletedTask;
-
-        try
-        {
-            if (OperatingSystem.IsMacOS())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("open", $"\"{target}\"");
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = item.IsDirectory ? $"\"{fullPath}\"" : $"/select,\"{fullPath}\"",
-                    UseShellExecute = true
-                });
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                var target = item.IsDirectory ? fullPath : (Path.GetDirectoryName(fullPath) ?? fullPath);
-                Process.Start("xdg-open", $"\"{target}\"");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[CSharpEditorPlugin] Reveal in file manager failed: {ex.Message}");
-        }
+        FileManagerReveal.Reveal(AbsolutePath(item));
         return Task.CompletedTask;
     }
 
@@ -421,25 +401,11 @@ public sealed partial class StudioWorkspaceExplorer : ObservableObject, IExplore
     private async Task DeleteAsync(ExplorerItemViewModel item)
     {
         if (item.IsPlaceholder) return;
-        try
-        {
-            if (item.IsDirectory)
-            {
-                var ids = All(item.Children).Where(c => !c.IsDirectory && c.DocumentId != null).Select(c => c.DocumentId!).ToList();
-                await _storage.DeleteFolderAsync(item.FullPath);
-                foreach (var id in ids) DocumentDeleted?.Invoke(id);
-            }
-            else if (!string.IsNullOrEmpty(item.DocumentId))
-            {
-                await _storage.DeleteItemAsync(item.DocumentId);
-                DocumentDeleted?.Invoke(item.DocumentId);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            StatusText = $"⚠️ Couldn't delete {item.Name}: {ex.Message}";
-            return;
-        }
+        var ids = ExplorerDeletion.DocumentIds(item);
+        var (result, error) = await ExplorerDeletion.DeleteAsync(_storage, _dialogs, item);
+        if (result == ExplorerDeletionResult.Failed) StatusText = error ?? string.Empty;
+        if (result != ExplorerDeletionResult.Deleted) return;
+        foreach (var id in ids) DocumentDeleted?.Invoke(id);
 
         using (ExplorerRows.Suspend())
         {

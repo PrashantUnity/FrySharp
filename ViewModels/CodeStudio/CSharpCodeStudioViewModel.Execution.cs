@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.CodeAnalysis;
 using PdfEditorApp.Plugins.CSharpEditor.Models;
+using PdfEditorApp.Plugins.CSharpEditor.Services.Common;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Display;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Execution;
 using PdfEditorApp.Plugins.CSharpEditor.Services.Kernels;
@@ -223,8 +224,8 @@ public partial class CSharpCodeStudioViewModel
         }
     }
 
-    public ObservableCollection<DumpTableResult> DumpResults { get; } = new();
-    public ObservableCollection<RichCellOutput> RichOutputs { get; } = new();
+    public RangeObservableCollection<DumpTableResult> DumpResults { get; } = new();
+    public RangeObservableCollection<RichCellOutput> RichOutputs { get; } = new();
 
     /// <summary>
     /// True when the Results tab has nothing to draw, so it shows its "No Visual Dumps Yet" hint: no table dumps and no
@@ -235,7 +236,7 @@ public partial class CSharpCodeStudioViewModel
     // The kinds the Results tab's RichOutputs template draws (StudioBottomDeckControl.axaml).
     private static bool IsDrawnInResults(RichCellOutput output) =>
         output.IsImageKind || output.IsHtmlKind || output.IsControlKind || output.IsInspectorKind || output.IsVisualKind;
-    public ObservableCollection<Common.DiagnosticItemViewModel> Diagnostics { get; } = new();
+    public RangeObservableCollection<Common.DiagnosticItemViewModel> Diagnostics { get; } = new();
     public ObservableCollection<Common.AssemblyReferenceViewModel> References { get; } = new();
     public ObservableCollection<TestCaseItem> TestCases { get; } = new();
 

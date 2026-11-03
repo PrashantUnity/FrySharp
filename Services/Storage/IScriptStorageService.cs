@@ -44,13 +44,18 @@ public interface IScriptStorageService
     /// </summary>
     event Action? ExternalChangeDetected;
 
+    /// <summary>Raised (on a background thread) with the files other programs changed; null when any file may have changed (the system lost track).</summary>
+    event Action<IReadOnlyCollection<string>?>? ExternalFilesChanged;
+
     Task<List<WorkspaceItemSummary>> LoadWorkspaceSummariesAsync();
 
     /// <summary>
     /// What the Explorer draws: the whole workspace when it fits <see cref="WorkspaceFileLimit"/>, otherwise only the top folder's
     /// contents (see <see cref="WorkspaceListing.IsPartial"/>), the rest being listed folder by folder with <see cref="ListFolderAsync"/>.
     /// </summary>
-    Task<WorkspaceListing> LoadExplorerListingAsync();
+    /// <param name="reuseCurrent">True to take the last listing when the workspace hasn't changed since (a first visit, a
+    /// catch-up); false (a Refresh) always reads the disk.</param>
+    Task<WorkspaceListing> LoadExplorerListingAsync(bool reuseCurrent = false);
 
     /// <summary>The subfolders and documents directly in one folder of the workspace (a path from the root; empty for the root).</summary>
     Task<WorkspaceListing> ListFolderAsync(string relativeFolder);
@@ -61,6 +66,21 @@ public interface IScriptStorageService
     Task<bool> SaveScriptAsync(ScriptDocumentItem script, string? folderPath = null);
     Task<NotebookDocumentItem?> LoadNotebookAsync(string id);
     Task<bool> SaveNotebookAsync(NotebookDocumentItem notebook, string? folderPath = null);
+
+    /// <summary>Moves a document's file to the machine's Trash (where it can be put back). False when it couldn't be moved there; nothing was deleted then.</summary>
+    Task<bool> MoveItemToTrashAsync(string id);
+
+    /// <summary>Moves a workspace folder (by its workspace-relative path) to the machine's Trash. False when it couldn't be moved there.</summary>
+    Task<bool> MoveFolderToTrashAsync(string folderPath);
+
+    /// <summary>Save As: writes the notebook to <paramref name="filePath"/> in the format its extension names, and makes that file the notebook's. Returns the file written (null when it couldn't be).</summary>
+    Task<string?> SaveNotebookAsAsync(NotebookDocumentItem notebook, string filePath);
+
+    /// <summary>Save As for a script or source file: writes <paramref name="text"/> to <paramref name="filePath"/> and returns that file as a document.</summary>
+    Task<ScriptDocumentItem?> SaveSourceFileAsAsync(string filePath, string text);
+
+    /// <summary>Save As for an API server document: writes it to <paramref name="filePath"/> and makes that file the document's. Returns the file written (null when it couldn't be).</summary>
+    Task<string?> SaveServerDocumentAsAsync(FryServerDocumentItem serverDoc, string filePath);
     Task<FryServerDocumentItem?> LoadServerDocumentAsync(string id);
     Task<bool> SaveServerDocumentAsync(FryServerDocumentItem serverDoc, string? folderPath = null);
     Task<ScriptDocumentItem> CreateNewScriptAsync(string title = "New Script", string? templateId = null, string? folderPath = null);

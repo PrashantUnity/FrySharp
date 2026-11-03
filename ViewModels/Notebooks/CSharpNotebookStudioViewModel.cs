@@ -53,6 +53,9 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
     // Where this studio reports work the user may wait for (opening a notebook, a folder); the host decides what to show.
     private readonly IActivityService _activities;
 
+    // Asks the user (unsaved changes on close, discards); nothing is asked without a studio on screen.
+    private readonly IStudioDialogService _dialogs;
+
     // Opening notebook B while notebook A is still loading cancels A, so A can never take the canvas away from B.
     private readonly LatestOperation _documentOpen = new();
 
@@ -123,7 +126,7 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
         }
         else if (value == 6 && IsSideBarVisible)
         {
-            _ = RefreshGitStatusAsync();
+            Git.RefreshGitStatusAsync().FireAndForget(_activities, "Checking the repository");
         }
 
         UpdateToolVisibilityFlags();
@@ -145,7 +148,7 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
                 1 => "OUTLINE",
                 2 => "LIVE VARIABLES",
                 3 => "SEARCH",
-                6 => GetSourceControlSideBarTitle(),
+                6 => Git.SideBarTitle,
                 _ => "EXPLORER"
             };
         }
@@ -444,9 +447,11 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
         StudioLanguageServices? languages = null,
         Action? navigateToSettingsAction = null,
         Action<FryServerDocumentItem>? openServerAction = null,
-        IActivityService? activities = null)
+        IActivityService? activities = null,
+        IStudioDialogService? dialogs = null)
     {
         _activities = activities ?? NullActivityService.Instance;
+        _dialogs = dialogs ?? NullStudioDialogService.Instance;
         _languages = languages ?? StudioLanguageServices.Default;
         _notebook = notebook;
         _storageService = storageService;
@@ -487,7 +492,6 @@ public partial class CSharpNotebookStudioViewModel : ObservableObject, IPageLife
         });
 
         InitializeExtensibilityBridge();
-        InitializeGitSupport();
     }
 
     private void OnStudioSettingsChanged(StudioSettings s)

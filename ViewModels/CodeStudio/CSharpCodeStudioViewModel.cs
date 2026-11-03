@@ -20,7 +20,7 @@ using PdfEditorApp.Plugins.CSharpEditor.ViewModels.Common;
 
 namespace PdfEditorApp.Plugins.CSharpEditor.ViewModels.CodeStudio;
 
-public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewFileHost, IPageLifecycle, Git.IGitStudioHostViewModel
+public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewFileHost, IPageLifecycle
 {
     private readonly IScriptStorageService _storageService;
     private readonly RoslynCompilerService _compilerService;
@@ -47,6 +47,9 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
 
     // Where this studio reports work the user may wait for (opening a file, a folder); the host decides what to show.
     private readonly IActivityService _activities;
+
+    // Asks the user (unsaved changes on close, discards); nothing is asked without a studio on screen.
+    private readonly IStudioDialogService _dialogs;
 
     // Opening file B while file A is still loading cancels A: a slow A can never take the editor away from B.
     private readonly LatestOperation _fileOpen = new();
@@ -241,7 +244,7 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
                 3 => "DEPENDENCIES & NUGET",
                 4 => "SCRATCHPAD & NOTES",
                 5 => "PROBLEMS",
-                6 => GetSourceControlSideBarTitle(),
+                6 => Git.SideBarTitle,
                 _ => "EXPLORER"
             };
         }
@@ -262,7 +265,7 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
 
         if (value == 6)
         {
-            _ = RefreshGitStatusAsync();
+            Git.RefreshGitStatusAsync().FireAndForget(_activities, "Checking the repository");
         }
     }
 
@@ -327,10 +330,12 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
         StudioLanguageServices? languages = null,
         Action? navigateToSettingsAction = null,
         Action<FryServerDocumentItem>? openServerAction = null,
-        IActivityService? activities = null)
+        IActivityService? activities = null,
+        IStudioDialogService? dialogs = null)
     {
         _script = script;
         _activities = activities ?? NullActivityService.Instance;
+        _dialogs = dialogs ?? NullStudioDialogService.Instance;
         _languages = languages ?? StudioLanguageServices.Default;
         _storageService = storageService;
         _compilerService = compilerService;
@@ -421,7 +426,7 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
         OnActiveLanguageChanged();
         InitializeNuGetPackages();
         InitializeExtensibilityBridge();
-        InitializeGitSupport();
+        WatchOpenDocumentsOnDisk();
     }
 
     private void OnLanguagesRegistryChanged()
@@ -478,7 +483,18 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
     partial void OnNotesChanged(string value)
     {
         Script.Notes = value;
-        if (!_isRestoringTabState) Script.LastModified = DateTime.UtcNow;
+        if (_isRestoringTabState) return;
+        Script.LastModified = DateTime.UtcNow;
+        MarkActiveDocumentEdited();
+    }
+
+    // An edit to the open document (its code, notes or test cases): its tab shows ●, closing it asks first, and the studio's
+    // own saves (switching files, leaving the studio) write it.
+    private void MarkActiveDocumentEdited()
+    {
+        if (_isRestoringTabState) return;
+        var activeTab = OpenTabs.FirstOrDefault(t => t.Id == Script.Id);
+        if (activeTab != null) activeTab.IsDirty = true;
     }
 
     partial void OnSelectedLanguageModeIndexChanged(int value)
@@ -505,51 +521,92 @@ public partial class CSharpCodeStudioViewModel : ObservableObject, IExplorerNewF
 
     /// <summary>
     /// Saves the active document. <paramref name="userAsked"/> is false for the saves the studio makes on its own
-    /// (switching files, leaving the studio): those never write over a source file another program changed meanwhile.
+    /// (switching files, leaving the studio): those write only a document that was edited (one that was only looked at keeps
+    /// its file, its modified time and its place in the Hub), never an untitled one, and never over a source file another
+    /// program changed meanwhile. False when the document could not be saved.
     /// </summary>
-    private async Task SaveDocumentAsync(bool userAsked)
+    private async Task<bool> SaveDocumentAsync(bool userAsked)
     {
-        if (Script.IsReadOnly || Script.Id.StartsWith("git-diff:", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        if (userAsked)
-        {
-            Script.IsEphemeral = false;
-        }
+        var activeTab = OpenTabs.FirstOrDefault(t => t.Id == Script.Id);
+        if (!userAsked && (activeTab is { IsDirty: false } || Script.IsEphemeral)) return true;
 
         Script.Code = Code;
         Script.Notes = Notes;
         Script.TestCases = TestCases.ToList();
-        Script.LastModified = DateTime.UtcNow;
-        bool saved;
-        if (Script.SourceFilePath != null)
+        return await SaveDocumentCoreAsync(Script, activeTab, userAsked);
+    }
+
+    /// <summary>
+    /// Save As: writes the open document's text to <paramref name="filePath"/> and shows that file in its place. The file it
+    /// came from keeps what it had on disk (as in VS Code). False when the file couldn't be written.
+    /// </summary>
+    public async Task<bool> SaveAsAsync(string filePath)
+    {
+        var previous = OpenTabs.FirstOrDefault(t => t.Id == Script.Id);
+        var saved = await _storageService.SaveSourceFileAsAsync(filePath, Code);
+        if (saved == null)
         {
-            saved = await _storageService.SaveSourceFileAsync(Script, overwriteChangesOnDisk: userAsked);
+            CompilerStatusText = $"⚠️ Couldn't save {Path.GetFileName(filePath)}: check the folder's permissions";
+            return false;
+        }
+
+        // Its edits now live in the new file.
+        if (previous != null) previous.IsDirty = false;
+        await UpdateActiveScriptAsync(saved);
+        if (previous != null && previous.Id != saved.Id && OpenTabs.Contains(previous)) await CloseTabAsync(previous);
+        CompilerStatusText = "Saved";
+        return true;
+    }
+
+    /// <summary>Saves the document of <paramref name="tab"/>, on screen or not (a tab that isn't shown keeps its edits in its document).</summary>
+    private Task<bool> SaveTabAsync(Common.StudioTabItemViewModel tab) =>
+        tab.Id == Script.Id ? SaveDocumentAsync(userAsked: true) : SaveDocumentCoreAsync(tab.Document, tab, userAsked: true);
+
+    private async Task<bool> SaveDocumentCoreAsync(ScriptDocumentItem document, Common.StudioTabItemViewModel? tab, bool userAsked)
+    {
+        // A diff or a snapshot is never written anywhere; there is nothing to lose by closing it either.
+        if (document.IsReadOnly || document.Id.StartsWith("git-diff:", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (userAsked)
+        {
+            document.IsEphemeral = false;
+        }
+
+        document.LastModified = DateTime.UtcNow;
+        bool saved;
+        if (document.SourceFilePath != null)
+        {
+            saved = await _storageService.SaveSourceFileAsync(document, overwriteChangesOnDisk: userAsked);
             CompilerStatusText = saved
                 ? "Saved"
                 : userAsked
-                    ? $"⚠️ Couldn't save {Script.Title}: check the folder's permissions"
-                    : $"⚠️ {Script.Title} changed on disk, so it wasn't saved over. Ctrl+S saves your version.";
+                    ? $"⚠️ Couldn't save {document.Title}: check the folder's permissions"
+                    : $"⚠️ {document.Title} changed on disk, so it wasn't saved over. Ctrl+S saves your version.";
         }
         else
         {
-            saved = await _storageService.SaveScriptAsync(Script);
+            saved = await _storageService.SaveScriptAsync(document);
             CompilerStatusText = saved ? "Saved" : "⚠️ Save failed — check disk space/permissions";
         }
 
-        if (!saved) return;
+        if (!saved) return false;
 
-        var activeTab = OpenTabs.FirstOrDefault(t => t.Id == Script.Id);
-        if (activeTab != null)
+        if (tab != null)
         {
-            activeTab.IsDirty = false;
-            activeTab.NotifyTitleChanged();
+            tab.IsDirty = false;
+            tab.NotifyTitleChanged();
         }
 
-        PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.StudioAppContext.Instance.HookRegistry.InvokeDocumentSaved(
-            new Services.Extensibility.Editor.StudioDocumentContextAdapter(this));
+        if (ReferenceEquals(document, Script))
+        {
+            PdfEditorApp.Plugins.CSharpEditor.Services.Extensibility.StudioAppContext.Instance.HookRegistry.InvokeDocumentSaved(
+                new Services.Extensibility.Editor.StudioDocumentContextAdapter(this));
+        }
+
+        return true;
     }
 
     [RelayCommand]

@@ -5,13 +5,21 @@
     <!-- MASTER C# CODE STUDIO STYLE BUNDLE                           -->
     <!-- Unified canonical entry point for all studio styles & tokens -->
     <!-- ============================================================ -->
+    <!-- Include this bundle once on any branch of the tree, through StudioStyleSheet (Controls/Common): Avalonia gives
+         every control an instance of each style of its type in each copy, matched or not, so a second copy doubled what
+         every control cost to build. -->
     <Styles.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://CSharpEditorPlugin/Styles/Tokens/StudioPaletteTokens.axaml" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- How a tree tells it already has this bundle (StudioStyleSheet.MarkerKey). -->
+            <x:Boolean x:Key="StudioStylesIncluded">True</x:Boolean>
         </ResourceDictionary>
     </Styles.Resources>
+
+    <!-- The editor's own theme comes with the bundle, ahead of the studio's editor styles that adjust it. -->
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
 
     <!-- Core IDE Zones (Zones 1 - 5) -->
     <StyleInclude Source="avares://CSharpEditorPlugin/Styles/Core/StudioActivityBarStyles.axaml" />
